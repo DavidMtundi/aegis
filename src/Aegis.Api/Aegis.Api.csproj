@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>aegis-api-dev</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Aegis.Infrastructure\Aegis.Infrastructure.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Identity\Aegis.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Kyc\Aegis.Modules.Kyc.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Kyb\Aegis.Modules.Kyb.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Screening\Aegis.Modules.Screening.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Risk\Aegis.Modules.Risk.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Transactions\Aegis.Modules.Transactions.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Features\Aegis.Modules.Features.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Aml\Aegis.Modules.Aml.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Alerts\Aegis.Modules.Alerts.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Cases\Aegis.Modules.Cases.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Network\Aegis.Modules.Network.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Reporting\Aegis.Modules.Reporting.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Audit\Aegis.Modules.Audit.csproj" />
+  </ItemGroup>
+</Project>

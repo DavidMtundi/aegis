@@ -1,0 +1,38 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.cs]
+dotnet_sort_system_directives_first = true
+csharp_new_line_before_open_brace = all
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = true:suggestion
+
+# Naming Conventions
+dotnet_naming_rule.types_and_methods_should_be_pascal_case.severity = suggestion
+dotnet_naming_rule.types_and_methods_should_be_pascal_case.symbols = types_and_methods
+dotnet_naming_rule.types_and_methods_should_be_pascal_case.style = pascal_case
+
+dotnet_naming_symbols.types_and_methods.applicable_kinds = class, struct, interface, enum, method
+
+dotnet_naming_style.pascal_case.required_prefix = 
+dotnet_naming_style.pascal_case.required_suffix = 
+dotnet_naming_style.pascal_case.word_separator = 
+dotnet_naming_style.pascal_case.capitalization = pascal_case
+
+dotnet_naming_rule.locals_should_be_camel_case.severity = suggestion
+dotnet_naming_rule.locals_should_be_camel_case.symbols = locals
+dotnet_naming_rule.locals_should_be_camel_case.style = camel_case
+
+dotnet_naming_symbols.locals.applicable_kinds = local
+
+dotnet_naming_style.camel_case.required_prefix = 
+dotnet_naming_style.camel_case.required_suffix = 
+dotnet_naming_style.camel_case.word_separator = 
+dotnet_naming_style.camel_case.capitalization = camel_case

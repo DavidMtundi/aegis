@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.1" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+    <PackageReference Include="StackExchange.Redis" Version="2.8.16" />
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="OpenTelemetry" Version="1.10.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.10.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Aegis.Shared\Aegis.Shared.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Audit\Aegis.Modules.Audit.csproj" />
+  </ItemGroup>
+</Project>
