@@ -6,6 +6,7 @@ using Aegis.Modules.Audit.Domain;
 using Aegis.Modules.Identity.Application;
 using Aegis.Modules.Identity.Domain;
 using Aegis.Shared.Domain;
+using Aegis.Shared.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,19 +19,22 @@ public sealed class AuthController : ControllerBase
     private readonly PasswordHasher _passwordHasher;
     private readonly IJwtTokenService _jwt;
     private readonly IAuditWriter _audit;
+    private readonly IUnitOfWork _uow;
 
     public AuthController(
         ITenantRepository tenants,
         IUserRepository users,
         PasswordHasher passwordHasher,
         IJwtTokenService jwt,
-        IAuditWriter audit)
+        IAuditWriter audit,
+        IUnitOfWork uow)
     {
         _tenants = tenants;
         _users = users;
         _passwordHasher = passwordHasher;
         _jwt = jwt;
         _audit = audit;
+        _uow = uow;
     }
 
     public sealed record LoginRequest(string Email, string Password, string TenantSlug);
@@ -67,6 +71,8 @@ public sealed class AuthController : ControllerBase
             null,
             "User logged in",
             HttpContext.TraceIdentifier), ct);
+
+        await _uow.SaveChangesAsync(ct);
 
         var token = _jwt.CreateAccessToken(user, tenant);
         return Ok(new LoginResponse(token, tenant.Id, user.Id, user.Email));

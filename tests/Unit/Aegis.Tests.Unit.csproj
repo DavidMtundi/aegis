@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Aegis.Modules.Aml\Aegis.Modules.Aml.csproj" />
+    <ProjectReference Include="..\..\src\Aegis.Modules.Features\Aegis.Modules.Features.csproj" />
+    <ProjectReference Include="..\..\src\Aegis.Modules.Transactions\Aegis.Modules.Transactions.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Shared\Aegis.Shared.csproj" />
   </ItemGroup>
 

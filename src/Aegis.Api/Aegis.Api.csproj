@@ -30,5 +30,6 @@
     <ProjectReference Include="..\Aegis.Modules.Reporting\Aegis.Modules.Reporting.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Audit\Aegis.Modules.Audit.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Customers\Aegis.Modules.Customers.csproj" />
+    <ProjectReference Include="..\Aegis.Application\Aegis.Application.csproj" />
   </ItemGroup>
 </Project>

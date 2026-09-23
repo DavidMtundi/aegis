@@ -4,6 +4,7 @@ using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Audit.Domain;
 using Aegis.Modules.Customers.Application;
 using Aegis.Modules.Customers.Domain;
+using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -17,17 +18,20 @@ public sealed class CustomersController : ControllerBase
     private readonly IAccountRepository _accounts;
     private readonly ITenantContext _tenant;
     private readonly IAuditWriter _audit;
+    private readonly IUnitOfWork _uow;
 
     public CustomersController(
         ICustomerRepository customers,
         IAccountRepository accounts,
         ITenantContext tenant,
-        IAuditWriter audit)
+        IAuditWriter audit,
+        IUnitOfWork uow)
     {
         _customers = customers;
         _accounts = accounts;
         _tenant = tenant;
         _audit = audit;
+        _uow = uow;
     }
 
     public sealed record CreateCustomerRequest(
@@ -78,6 +82,7 @@ public sealed class CustomersController : ControllerBase
             null,
             "Customer created",
             HttpContext.TraceIdentifier), ct);
+        await _uow.SaveChangesAsync(ct);
 
         return Created($"/api/v1/customers/{customer.Id}", new { id = customer.Id, type = customer.Type.ToString(), country = customer.Country });
     }
@@ -124,6 +129,7 @@ public sealed class CustomersController : ControllerBase
                 null,
                 "Account created",
                 HttpContext.TraceIdentifier), ct);
+            await _uow.SaveChangesAsync(ct);
 
             return Created($"/api/v1/accounts/{account.Id}", new
             {

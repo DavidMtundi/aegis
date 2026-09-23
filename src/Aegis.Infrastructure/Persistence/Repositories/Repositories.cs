@@ -1,5 +1,7 @@
 namespace Aegis.Infrastructure.Persistence.Repositories;
 
+using Aegis.Modules.Aml.Application;
+using Aegis.Modules.Aml.Domain;
 using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Audit.Domain;
 using Aegis.Modules.Identity.Application;
@@ -25,7 +27,6 @@ public sealed class TenantRepository : ITenantRepository
     public async Task AddAsync(Tenant tenant, CancellationToken cancellationToken = default)
     {
         await _db.Tenants.AddAsync(tenant, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
     }
 }
 
@@ -47,13 +48,11 @@ public sealed class UserRepository : IUserRepository
     public async Task AddAsync(User user, CancellationToken cancellationToken = default)
     {
         await _db.Users.AddAsync(user, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task UpdateAsync(User user, CancellationToken cancellationToken = default)
     {
         _db.Users.Update(user);
-        await _db.SaveChangesAsync(cancellationToken);
     }
 }
 
@@ -66,7 +65,6 @@ public sealed class AuditWriter : IAuditWriter
     public async Task AppendAsync(AuditEvent auditEvent, CancellationToken cancellationToken = default)
     {
         await _db.AuditEvents.AddAsync(auditEvent, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
     }
 }
 
@@ -92,7 +90,6 @@ public sealed class CustomerRepository : Aegis.Modules.Customers.Application.ICu
     public async Task AddAsync(Aegis.Modules.Customers.Domain.Customer customer, CancellationToken cancellationToken = default)
     {
         await _db.Customers.AddAsync(customer, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
     }
 }
 
@@ -107,7 +104,6 @@ public sealed class AccountRepository : Aegis.Modules.Customers.Application.IAcc
     public async Task AddAsync(Aegis.Modules.Customers.Domain.Account account, CancellationToken cancellationToken = default)
     {
         await _db.Accounts.AddAsync(account, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
     }
 }
 
@@ -130,7 +126,6 @@ public sealed class TransactionRepository :
     public async Task AddAsync(Aegis.Modules.Transactions.Domain.CanonicalTransaction transaction, CancellationToken cancellationToken = default)
     {
         await _db.Transactions.AddAsync(transaction, cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<Aegis.Modules.Transactions.Domain.CanonicalTransaction>> GetForCustomerWindowAsync(
@@ -140,12 +135,53 @@ public sealed class TransactionRepository :
         DateTimeOffset windowEndExclusive,
         CancellationToken cancellationToken = default)
     {
-        return await _db.Transactions.AsNoTracking()
+        // Include Local (Added) entities so feature calc sees the in-flight ingest before SaveChanges.
+        var fromDb = await _db.Transactions
             .Where(t => t.TenantId == tenantId
                         && t.CustomerId == customerId
                         && t.Timestamp >= windowStartInclusive
                         && t.Timestamp < windowEndExclusive)
             .OrderBy(t => t.Timestamp)
             .ToListAsync(cancellationToken);
+
+        var fromLocal = _db.Transactions.Local
+            .Where(t => t.TenantId == tenantId
+                        && t.CustomerId == customerId
+                        && t.Timestamp >= windowStartInclusive
+                        && t.Timestamp < windowEndExclusive)
+            .ToList();
+
+        return fromDb
+            .Concat(fromLocal)
+            .GroupBy(t => t.Id)
+            .Select(g => g.First())
+            .OrderBy(t => t.Timestamp)
+            .ToList();
     }
+}
+
+public sealed class AmlRuleRepository : IAmlRuleRepository
+{
+    private readonly AegisDbContext _db;
+    public AmlRuleRepository(AegisDbContext db) => _db = db;
+
+    public Task<AmlRule?> GetByTenantAndCodeAsync(TenantId tenantId, string code, CancellationToken cancellationToken = default)
+        => _db.AmlRules.FirstOrDefaultAsync(r => r.TenantId == tenantId && r.Code == code, cancellationToken);
+
+    public async Task AddAsync(AmlRule rule, CancellationToken cancellationToken = default)
+        => await _db.AmlRules.AddAsync(rule, cancellationToken);
+}
+
+public sealed class AmlRuleVersionRepository : IAmlRuleVersionRepository
+{
+    private readonly AegisDbContext _db;
+    public AmlRuleVersionRepository(AegisDbContext db) => _db = db;
+
+    public async Task<IReadOnlyList<AmlRuleVersion>> GetActiveByTenantAsync(TenantId tenantId, CancellationToken cancellationToken = default)
+        => await _db.AmlRuleVersions
+            .Where(v => v.TenantId == tenantId && v.Status == RuleVersionStatus.ACTIVE)
+            .ToListAsync(cancellationToken);
+
+    public async Task AddAsync(AmlRuleVersion version, CancellationToken cancellationToken = default)
+        => await _db.AmlRuleVersions.AddAsync(version, cancellationToken);
 }

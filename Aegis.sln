@@ -49,6 +49,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aegis.Tests.EndToEnd", "tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aegis.Modules.Customers", "src\Aegis.Modules.Customers\Aegis.Modules.Customers.csproj", "{8A01BC60-440E-4C6D-9920-13E9D4A60AC1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aegis.Application", "src\Aegis.Application\Aegis.Application.csproj", "{CA7C1116-A30E-483C-905E-35FEA15BFB03}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -311,6 +313,18 @@ Global
 		{8A01BC60-440E-4C6D-9920-13E9D4A60AC1}.Release|x64.Build.0 = Release|Any CPU
 		{8A01BC60-440E-4C6D-9920-13E9D4A60AC1}.Release|x86.ActiveCfg = Release|Any CPU
 		{8A01BC60-440E-4C6D-9920-13E9D4A60AC1}.Release|x86.Build.0 = Release|Any CPU
+		{CA7C1116-A30E-483C-905E-35FEA15BFB03}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CA7C1116-A30E-483C-905E-35FEA15BFB03}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CA7C1116-A30E-483C-905E-35FEA15BFB03}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{CA7C1116-A30E-483C-905E-35FEA15BFB03}.Debug|x64.Build.0 = Debug|Any CPU
+		{CA7C1116-A30E-483C-905E-35FEA15BFB03}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{CA7C1116-A30E-483C-905E-35FEA15BFB03}.Debug|x86.Build.0 = Debug|Any CPU
+		{CA7C1116-A30E-483C-905E-35FEA15BFB03}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CA7C1116-A30E-483C-905E-35FEA15BFB03}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CA7C1116-A30E-483C-905E-35FEA15BFB03}.Release|x64.ActiveCfg = Release|Any CPU
+		{CA7C1116-A30E-483C-905E-35FEA15BFB03}.Release|x64.Build.0 = Release|Any CPU
+		{CA7C1116-A30E-483C-905E-35FEA15BFB03}.Release|x86.ActiveCfg = Release|Any CPU
+		{CA7C1116-A30E-483C-905E-35FEA15BFB03}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -337,5 +351,6 @@ Global
 		{609F1864-053E-411F-BCD1-186BCB6367DF} = {89F4ADF3-C9A9-405B-89BD-E03B1F6851C4}
 		{FB7953D3-49E1-4250-B487-C85AF745EE70} = {89F4ADF3-C9A9-405B-89BD-E03B1F6851C4}
 		{8A01BC60-440E-4C6D-9920-13E9D4A60AC1} = {26B9283A-8F08-4D91-9BBE-940BCB879A24}
+		{CA7C1116-A30E-483C-905E-35FEA15BFB03} = {26B9283A-8F08-4D91-9BBE-940BCB879A24}
 	EndGlobalSection
 EndGlobal

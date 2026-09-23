@@ -1,11 +1,7 @@
 namespace Aegis.Api.Controllers;
 
-using Aegis.Modules.Audit.Application;
-using Aegis.Modules.Audit.Domain;
-using Aegis.Modules.Customers.Application;
+using Aegis.Application.Transactions;
 using Aegis.Modules.Transactions.Application;
-using Aegis.Modules.Transactions.Domain;
-using Aegis.Shared.Domain;
 using Aegis.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,24 +11,18 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/v1/transactions")]
 public sealed class TransactionsController : ControllerBase
 {
+    private readonly IIngestAndEvaluateStructuring _ingest;
     private readonly ITransactionRepository _transactions;
-    private readonly ICustomerRepository _customers;
-    private readonly IAccountRepository _accounts;
     private readonly ITenantContext _tenant;
-    private readonly IAuditWriter _audit;
 
     public TransactionsController(
+        IIngestAndEvaluateStructuring ingest,
         ITransactionRepository transactions,
-        ICustomerRepository customers,
-        IAccountRepository accounts,
-        ITenantContext tenant,
-        IAuditWriter audit)
+        ITenantContext tenant)
     {
+        _ingest = ingest;
         _transactions = transactions;
-        _customers = customers;
-        _accounts = accounts;
         _tenant = tenant;
-        _audit = audit;
     }
 
     public sealed record IngestRequest(
@@ -48,65 +38,72 @@ public sealed class TransactionsController : ControllerBase
         string? CounterpartyCountry,
         Dictionary<string, string>? Metadata);
 
-    public sealed record IngestResponse(Guid TransactionId, bool WasCreated, string ExternalReference);
+    public sealed record EvaluationDto(
+        Guid RuleId,
+        Guid RuleVersionId,
+        string RuleCode,
+        int RuleVersion,
+        bool IsTriggered,
+        IReadOnlyDictionary<string, object> Features);
+
+    public sealed record IngestResponse(
+        Guid TransactionId,
+        bool WasCreated,
+        string ExternalReference,
+        IReadOnlyList<EvaluationDto> Evaluations);
 
     [HttpPost]
     public async Task<ActionResult<IngestResponse>> Ingest([FromBody] IngestRequest request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
 
-        var existing = await _transactions.GetByTenantAndExternalReferenceAsync(_tenant.TenantId, request.ExternalReference, ct);
-        if (existing is not null)
-        {
-            return Ok(new IngestResponse(existing.Id, false, existing.ExternalReference));
-        }
-
-        var customer = await _customers.GetByTenantAndIdAsync(_tenant.TenantId, request.CustomerId, ct);
-        if (customer is null) return BadRequest("Customer not found in tenant.");
-
-        var account = await _accounts.GetByTenantAndIdAsync(_tenant.TenantId, request.AccountId, ct);
-        if (account is null) return BadRequest("Account not found in tenant.");
-        if (account.CustomerId.Value != customer.Id) return BadRequest("Account does not belong to customer.");
-
-        if (!Enum.TryParse<TransactionDirection>(request.Direction, true, out var direction))
-            return BadRequest("Invalid Direction.");
-        if (!Enum.TryParse<TransactionType>(request.TransactionType, true, out var type))
-            return BadRequest("Invalid TransactionType.");
-        if (!Enum.TryParse<TransactionChannel>(request.Channel, true, out var channel))
-            return BadRequest("Invalid Channel.");
-
         try
         {
-            var money = new Money(request.Amount, request.Currency.Trim().ToUpperInvariant());
-            var tx = CanonicalTransaction.Ingest(
+            var result = await _ingest.ExecuteAsync(new IngestAndEvaluateStructuringCommand(
                 _tenant.TenantId,
-                request.ExternalReference,
-                account.AccountId,
-                customer.CustomerId,
-                request.Timestamp,
-                money,
-                direction,
-                type,
-                channel,
-                request.CounterpartyCountry,
-                request.Metadata);
-
-            await _transactions.AddAsync(tx, ct);
-            await _audit.AppendAsync(AuditEvent.Create(
-                _tenant.TenantId.Value,
-                AuditEventTypes.TRANSACTION_INGESTED,
-                nameof(CanonicalTransaction),
-                tx.Id.ToString(),
-                _tenant.UserId.ToString(),
+                _tenant.UserId,
                 _tenant.Roles.FirstOrDefault(),
-                null,
-                null,
-                "Transaction ingested",
+                new IngestTransactionPayload(
+                    request.ExternalReference,
+                    request.AccountId,
+                    request.CustomerId,
+                    request.Amount,
+                    request.Currency,
+                    request.Direction,
+                    request.TransactionType,
+                    request.Channel,
+                    request.Timestamp,
+                    request.CounterpartyCountry,
+                    request.Metadata),
                 HttpContext.TraceIdentifier), ct);
 
-            return Created($"/api/v1/transactions/{tx.Id}", new IngestResponse(tx.Id, true, tx.ExternalReference));
+            var externalReference = request.ExternalReference.Trim();
+            if (!result.WasCreated)
+            {
+                var existing = await _transactions.GetByTenantAndIdAsync(_tenant.TenantId, result.TransactionId, ct);
+                externalReference = existing?.ExternalReference ?? externalReference;
+            }
+
+            var evaluations = result.Evaluations
+                .Select(e => new EvaluationDto(
+                    e.RuleId,
+                    e.RuleVersionId,
+                    e.RuleCode,
+                    e.RuleVersion,
+                    e.IsTriggered,
+                    e.Features))
+                .ToList();
+
+            var response = new IngestResponse(result.TransactionId, result.WasCreated, externalReference, evaluations);
+            return result.WasCreated
+                ? Created($"/api/v1/transactions/{result.TransactionId}", response)
+                : Ok(response);
         }
         catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (InvalidOperationException ex)
         {
             return BadRequest(ex.Message);
         }

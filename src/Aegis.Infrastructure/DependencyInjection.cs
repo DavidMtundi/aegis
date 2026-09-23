@@ -2,13 +2,19 @@ namespace Aegis.Infrastructure;
 
 using System.Security.Claims;
 using System.Text;
+using Aegis.Application.Transactions;
+using Aegis.Infrastructure.Aml;
 using Aegis.Infrastructure.Auth;
 using Aegis.Infrastructure.Persistence;
 using Aegis.Infrastructure.Persistence.Repositories;
+using Aegis.Modules.Aml.Application;
+using Aegis.Modules.Aml.Engine;
 using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Customers.Application;
+using Aegis.Modules.Features.Application;
 using Aegis.Modules.Identity.Application;
 using Aegis.Modules.Transactions.Application;
+using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +30,7 @@ public static class DependencyInjection
         services.AddDbContext<AegisDbContext>(options =>
             options.UseNpgsql(configuration.GetConnectionString("Aegis")));
 
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
         services.AddScoped<TenantContext>();
         services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
         services.AddScoped<ITenantRepository, TenantRepository>();
@@ -35,6 +42,15 @@ public static class DependencyInjection
         services.AddScoped<TransactionRepository>();
         services.AddScoped<ITransactionRepository>(sp => sp.GetRequiredService<TransactionRepository>());
         services.AddScoped<ITransactionReadPort>(sp => sp.GetRequiredService<TransactionRepository>());
+        services.AddScoped<IAmlRuleRepository, AmlRuleRepository>();
+        services.AddScoped<IAmlRuleVersionRepository, AmlRuleVersionRepository>();
+        services.AddScoped<IStructuringRuleSeeder, StructuringRuleSeeder>();
+        services.AddScoped<IFeatureCalculator, FeatureCalculator>();
+        services.AddSingleton<ConditionEvaluator>();
+        services.AddSingleton<ConditionGroupEvaluator>();
+        services.AddSingleton<ExclusionEvaluator>();
+        services.AddSingleton<IRuleEvaluationEngine, RuleEvaluationEngine>();
+        services.AddScoped<IIngestAndEvaluateStructuring, IngestAndEvaluateStructuring>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<PasswordHasher>();
 

@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Aegis.Shared\Aegis.Shared.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Customers\Aegis.Modules.Customers.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Transactions\Aegis.Modules.Transactions.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Features\Aegis.Modules.Features.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Aml\Aegis.Modules.Aml.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Audit\Aegis.Modules.Audit.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Identity\Aegis.Modules.Identity.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

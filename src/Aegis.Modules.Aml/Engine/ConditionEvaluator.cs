@@ -116,6 +116,9 @@ public sealed class ConditionEvaluator
 
     private static bool AreEqual(object? a, object? b)
     {
+        a = Unwrap(a);
+        b = Unwrap(b);
+
         if (a is null && b is null) return true;
         if (a is null || b is null) return false;
         if (a.Equals(b)) return true;
@@ -143,6 +146,9 @@ public sealed class ConditionEvaluator
 
     private static int Compare(object? a, object? b)
     {
+        a = Unwrap(a);
+        b = Unwrap(b);
+
         if (a is null && b is null) return 0;
         if (a is null) return -1;
         if (b is null) return  1;
@@ -152,5 +158,24 @@ public sealed class ConditionEvaluator
 
         try { return Convert.ToDecimal(a).CompareTo(Convert.ToDecimal(b)); }
         catch { return string.Compare(a.ToString(), b.ToString(), StringComparison.Ordinal); }
+    }
+
+    private static object? Unwrap(object? value)
+    {
+        if (value is System.Text.Json.JsonElement element)
+        {
+            return element.ValueKind switch
+            {
+                System.Text.Json.JsonValueKind.Number when element.TryGetInt64(out var l) => l,
+                System.Text.Json.JsonValueKind.Number => element.GetDecimal(),
+                System.Text.Json.JsonValueKind.String => element.GetString(),
+                System.Text.Json.JsonValueKind.True => true,
+                System.Text.Json.JsonValueKind.False => false,
+                System.Text.Json.JsonValueKind.Null => null,
+                _ => element.ToString()
+            };
+        }
+
+        return value;
     }
 }

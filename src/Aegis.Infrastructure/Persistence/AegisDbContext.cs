@@ -1,5 +1,6 @@
 namespace Aegis.Infrastructure.Persistence;
 
+using Aegis.Modules.Aml.Domain;
 using Aegis.Modules.Audit.Domain;
 using Aegis.Modules.Customers.Domain;
 using Aegis.Modules.Identity.Domain;
@@ -20,6 +21,8 @@ public sealed class AegisDbContext : DbContext
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<CanonicalTransaction> Transactions => Set<CanonicalTransaction>();
+    public DbSet<AmlRule> AmlRules => Set<AmlRule>();
+    public DbSet<AmlRuleVersion> AmlRuleVersions => Set<AmlRuleVersion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

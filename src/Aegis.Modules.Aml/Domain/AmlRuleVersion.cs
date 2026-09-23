@@ -45,6 +45,35 @@ public sealed class AmlRuleVersion : EntityBase
         PropertyNameCaseInsensitive = true
     };
 
+    /// <summary>Creates an ACTIVE rule version for persisted seeding (same model as compliance-authored rules).</summary>
+    public static AmlRuleVersion CreateActive(
+        Guid ruleId,
+        TenantId tenantId,
+        int versionNumber,
+        RuleDefinition definition,
+        string createdBy,
+        DateTimeOffset effectiveFrom)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        ArgumentException.ThrowIfNullOrWhiteSpace(createdBy);
+
+        return new AmlRuleVersion
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            RuleId = ruleId,
+            VersionNumber = versionNumber,
+            Definition = definition,
+            Status = RuleVersionStatus.ACTIVE,
+            EffectiveFrom = effectiveFrom,
+            CreatedBy = createdBy,
+            ApprovedAt = effectiveFrom,
+            ApprovedBy = createdBy,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+    }
+
     private AmlRuleVersion() { }
 
     /// <summary>Creates a new DRAFT rule version.</summary>

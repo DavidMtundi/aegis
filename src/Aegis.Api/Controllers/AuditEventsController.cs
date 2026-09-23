@@ -2,6 +2,7 @@ namespace Aegis.Api.Controllers;
 
 using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Audit.Domain;
+using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,15 +15,18 @@ public sealed class AuditEventsController : ControllerBase
     private readonly IAuditWriter _auditWriter;
     private readonly IAuditEventRepository _auditEvents;
     private readonly ITenantContext _tenantContext;
+    private readonly IUnitOfWork _uow;
 
     public AuditEventsController(
         IAuditWriter auditWriter,
         IAuditEventRepository auditEvents,
-        ITenantContext tenantContext)
+        ITenantContext tenantContext,
+        IUnitOfWork uow)
     {
         _auditWriter = auditWriter;
         _auditEvents = auditEvents;
         _tenantContext = tenantContext;
+        _uow = uow;
     }
 
     public sealed record CreateAuditRequest(string EventType, string EntityType, string EntityId, string? Reason);
@@ -57,6 +61,7 @@ public sealed class AuditEventsController : ControllerBase
             HttpContext.TraceIdentifier);
 
         await _auditWriter.AppendAsync(audit, ct);
+        await _uow.SaveChangesAsync(ct);
         return CreatedAtAction(nameof(GetById), new { id = audit.Id }, ToResponse(audit));
     }
 
