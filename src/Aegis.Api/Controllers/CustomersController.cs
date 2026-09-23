@@ -92,15 +92,27 @@ public sealed class CustomersController : ControllerBase
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
         var customer = await _customers.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
-        return customer is null ? NotFound() : Ok(new
+        return customer is null ? NotFound() : Ok(ToCustomerResponse(customer));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> List(
+        [FromQuery] string? q,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        if (!_tenant.IsAuthenticated) return Unauthorized();
+        var result = await _customers.ListByTenantAsync(
+            _tenant.TenantId,
+            new CustomerListQuery(q, page, pageSize),
+            ct);
+        return Ok(new
         {
-            id = customer.Id,
-            type = customer.Type.ToString(),
-            country = customer.Country,
-            firstName = customer.FirstName,
-            lastName = customer.LastName,
-            legalName = customer.LegalName,
-            status = customer.Status.ToString()
+            items = result.Items.Select(ToCustomerResponse).ToList(),
+            page = result.Page,
+            pageSize = result.PageSize,
+            totalCount = result.TotalCount
         });
     }
 
@@ -144,4 +156,16 @@ public sealed class CustomersController : ControllerBase
             return BadRequest(ex.Message);
         }
     }
+
+    private static object ToCustomerResponse(Customer customer) => new
+    {
+        id = customer.Id,
+        type = customer.Type.ToString(),
+        country = customer.Country,
+        firstName = customer.FirstName,
+        lastName = customer.LastName,
+        legalName = customer.LegalName,
+        status = customer.Status.ToString(),
+        externalReference = customer.ExternalReference
+    };
 }

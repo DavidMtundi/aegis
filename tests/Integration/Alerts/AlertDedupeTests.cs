@@ -111,8 +111,8 @@ public sealed class AlertDedupeTests : IAsyncLifetime
         var alerts = await _client.GetAsync("/api/v1/alerts");
         Assert.Equal(HttpStatusCode.OK, alerts.StatusCode);
         var list = await alerts.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(JsonValueKind.Array, list.ValueKind);
-        Assert.Single(list.EnumerateArray());
+        Assert.Equal(1, list.GetProperty("totalCount").GetInt32());
+        Assert.Single(list.GetProperty("items").EnumerateArray());
 
         var get = await _client.GetAsync($"/api/v1/alerts/{firstAlertId}");
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);

@@ -115,22 +115,47 @@ public sealed class TransactionsController : ControllerBase
         }
     }
 
+    [HttpGet]
+    public async Task<IActionResult> List(
+        [FromQuery] Guid? customerId,
+        [FromQuery] DateTimeOffset? from,
+        [FromQuery] DateTimeOffset? to,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        if (!_tenant.IsAuthenticated) return Unauthorized();
+        var result = await _transactions.ListByTenantAsync(
+            _tenant.TenantId,
+            new TransactionListQuery(customerId, from, to, page, pageSize),
+            ct);
+        return Ok(new
+        {
+            items = result.Items.Select(ToTransactionResponse).ToList(),
+            page = result.Page,
+            pageSize = result.PageSize,
+            totalCount = result.TotalCount
+        });
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
         var tx = await _transactions.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
-        return tx is null ? NotFound() : Ok(new
-        {
-            id = tx.Id,
-            externalReference = tx.ExternalReference,
-            accountId = tx.AccountId.Value,
-            customerId = tx.CustomerId.Value,
-            amount = tx.Amount.Amount,
-            currency = tx.Amount.Currency,
-            direction = tx.Direction.ToString(),
-            timestamp = tx.Timestamp,
-            wasCreatedAt = tx.CreatedAt
-        });
+        return tx is null ? NotFound() : Ok(ToTransactionResponse(tx));
     }
+
+    private static object ToTransactionResponse(Modules.Transactions.Domain.CanonicalTransaction tx) => new
+    {
+        id = tx.Id,
+        externalReference = tx.ExternalReference,
+        accountId = tx.AccountId.Value,
+        customerId = tx.CustomerId.Value,
+        amount = tx.Amount.Amount,
+        currency = tx.Amount.Currency,
+        direction = tx.Direction.ToString(),
+        timestamp = tx.Timestamp,
+        wasCreatedAt = tx.CreatedAt
+    };
 }

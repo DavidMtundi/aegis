@@ -96,6 +96,43 @@ public sealed class CustomerRepository : Aegis.Modules.Customers.Application.ICu
     public Task<Aegis.Modules.Customers.Domain.Customer?> GetByTenantAndIdAsync(TenantId tenantId, Guid id, CancellationToken cancellationToken = default)
         => _db.Customers.FirstOrDefaultAsync(c => c.TenantId == tenantId && c.Id == id, cancellationToken);
 
+    public async Task<Aegis.Modules.Customers.Application.CustomerListResult> ListByTenantAsync(
+        TenantId tenantId,
+        Aegis.Modules.Customers.Application.CustomerListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
+        var q = query.Q?.Trim();
+
+        var filtered = _db.Customers.AsNoTracking().Where(c => c.TenantId == tenantId);
+        if (!string.IsNullOrEmpty(q))
+        {
+            if (Guid.TryParse(q, out var id))
+            {
+                filtered = filtered.Where(c => c.Id == id);
+            }
+            else
+            {
+                var pattern = $"%{q}%";
+                filtered = filtered.Where(c =>
+                    (c.FirstName != null && EF.Functions.ILike(c.FirstName, pattern))
+                    || (c.LastName != null && EF.Functions.ILike(c.LastName, pattern))
+                    || (c.LegalName != null && EF.Functions.ILike(c.LegalName, pattern))
+                    || (c.ExternalReference != null && EF.Functions.ILike(c.ExternalReference, pattern)));
+            }
+        }
+
+        var total = await filtered.CountAsync(cancellationToken);
+        var items = await filtered
+            .OrderByDescending(c => c.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new Aegis.Modules.Customers.Application.CustomerListResult(items, total, page, pageSize);
+    }
+
     public async Task AddAsync(Aegis.Modules.Customers.Domain.Customer customer, CancellationToken cancellationToken = default)
     {
         await _db.Customers.AddAsync(customer, cancellationToken);
@@ -135,6 +172,36 @@ public sealed class TransactionRepository :
     public async Task AddAsync(Aegis.Modules.Transactions.Domain.CanonicalTransaction transaction, CancellationToken cancellationToken = default)
     {
         await _db.Transactions.AddAsync(transaction, cancellationToken);
+    }
+
+    public async Task<Aegis.Modules.Transactions.Application.TransactionListResult> ListByTenantAsync(
+        TenantId tenantId,
+        Aegis.Modules.Transactions.Application.TransactionListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
+
+        var filtered = _db.Transactions.AsNoTracking().Where(t => t.TenantId == tenantId);
+        if (query.CustomerId is Guid customerId)
+        {
+            var cid = new CustomerId(customerId);
+            filtered = filtered.Where(t => t.CustomerId == cid);
+        }
+
+        if (query.From is DateTimeOffset from)
+            filtered = filtered.Where(t => t.Timestamp >= from);
+        if (query.To is DateTimeOffset to)
+            filtered = filtered.Where(t => t.Timestamp <= to);
+
+        var total = await filtered.CountAsync(cancellationToken);
+        var items = await filtered
+            .OrderByDescending(t => t.Timestamp)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new Aegis.Modules.Transactions.Application.TransactionListResult(items, total, page, pageSize);
     }
 
     public async Task<IReadOnlyList<Aegis.Modules.Transactions.Domain.CanonicalTransaction>> GetForCustomerWindowAsync(
@@ -191,6 +258,12 @@ public sealed class AmlRuleVersionRepository : IAmlRuleVersionRepository
             .Where(v => v.TenantId == tenantId && v.Status == RuleVersionStatus.ACTIVE)
             .ToListAsync(cancellationToken);
 
+    public Task<AmlRuleVersion?> GetActiveByTenantAndRuleIdAsync(TenantId tenantId, Guid ruleId, CancellationToken cancellationToken = default)
+        => _db.AmlRuleVersions.AsNoTracking()
+            .FirstOrDefaultAsync(
+                v => v.TenantId == tenantId && v.RuleId == ruleId && v.Status == RuleVersionStatus.ACTIVE,
+                cancellationToken);
+
     public async Task AddAsync(AmlRuleVersion version, CancellationToken cancellationToken = default)
         => await _db.AmlRuleVersions.AddAsync(version, cancellationToken);
 }
@@ -220,6 +293,31 @@ public sealed class AlertRepository : IAlertRepository
             .OrderByDescending(a => a.TriggeredAt)
             .Take(take)
             .ToListAsync(cancellationToken);
+
+    public async Task<AlertListResult> ListByTenantAsync(TenantId tenantId, AlertListQuery query, CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
+
+        var filtered = _db.Alerts.AsNoTracking().Where(a => a.TenantId == tenantId);
+        if (query.Status is AlertStatus status)
+            filtered = filtered.Where(a => a.Status == status);
+        if (query.Severity is AlertSeverity severity)
+            filtered = filtered.Where(a => a.Severity == severity);
+        if (query.From is DateTimeOffset from)
+            filtered = filtered.Where(a => a.TriggeredAt >= from);
+        if (query.To is DateTimeOffset to)
+            filtered = filtered.Where(a => a.TriggeredAt <= to);
+
+        var total = await filtered.CountAsync(cancellationToken);
+        var items = await filtered
+            .OrderByDescending(a => a.TriggeredAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new AlertListResult(items, total, page, pageSize);
+    }
 
     public async Task AddAsync(Alert alert, CancellationToken cancellationToken = default)
         => await _db.Alerts.AddAsync(alert, cancellationToken);

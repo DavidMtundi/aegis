@@ -26,6 +26,24 @@ public sealed class AlertDeduplicationTests
 
         public Task<IReadOnlyList<Alert>> ListByTenantAsync(TenantId tenantId, int take = 100, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<Alert>>(Items.Where(a => a.TenantId == tenantId).Take(take).ToList());
+
+        public Task<AlertListResult> ListByTenantAsync(TenantId tenantId, AlertListQuery query, CancellationToken cancellationToken = default)
+        {
+            var page = Math.Max(1, query.Page);
+            var pageSize = Math.Clamp(query.PageSize, 1, 100);
+            IEnumerable<Alert> filtered = Items.Where(a => a.TenantId == tenantId);
+            if (query.Status is AlertStatus status)
+                filtered = filtered.Where(a => a.Status == status);
+            if (query.Severity is AlertSeverity severity)
+                filtered = filtered.Where(a => a.Severity == severity);
+            if (query.From is DateTimeOffset from)
+                filtered = filtered.Where(a => a.TriggeredAt >= from);
+            if (query.To is DateTimeOffset to)
+                filtered = filtered.Where(a => a.TriggeredAt <= to);
+            var list = filtered.OrderByDescending(a => a.TriggeredAt).ToList();
+            var items = list.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            return Task.FromResult(new AlertListResult(items, list.Count, page, pageSize));
+        }
     }
 
     private static RuleEvaluationResult Triggered(Guid ruleId, Guid versionId, string focusEntityId) => new()

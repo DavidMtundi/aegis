@@ -137,7 +137,7 @@ public static class SliceHelpers
         var resp = await session.Client.GetAsync("/api/v1/alerts");
         resp.EnsureSuccessStatusCode();
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
-        return body.EnumerateArray().ToList();
+        return body.GetProperty("items").EnumerateArray().ToList();
     }
 
     public static async Task<IReadOnlyList<JsonElement>> ListAuditsAsync(TenantSession session)

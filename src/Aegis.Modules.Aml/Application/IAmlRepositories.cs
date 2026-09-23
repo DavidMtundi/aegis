@@ -16,6 +16,7 @@ public interface IAmlRuleRepository
 public interface IAmlRuleVersionRepository
 {
     Task<IReadOnlyList<AmlRuleVersion>> GetActiveByTenantAsync(TenantId tenantId, CancellationToken cancellationToken = default);
+    Task<AmlRuleVersion?> GetActiveByTenantAndRuleIdAsync(TenantId tenantId, Guid ruleId, CancellationToken cancellationToken = default);
     Task AddAsync(AmlRuleVersion version, CancellationToken cancellationToken = default);
 }
 

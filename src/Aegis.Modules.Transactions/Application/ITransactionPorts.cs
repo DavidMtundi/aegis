@@ -7,10 +7,24 @@ using System.Threading.Tasks;
 using Aegis.Modules.Transactions.Domain;
 using Aegis.Shared.Domain;
 
+public sealed record TransactionListQuery(
+    Guid? CustomerId = null,
+    DateTimeOffset? From = null,
+    DateTimeOffset? To = null,
+    int Page = 1,
+    int PageSize = 50);
+
+public sealed record TransactionListResult(
+    IReadOnlyList<CanonicalTransaction> Items,
+    int TotalCount,
+    int Page,
+    int PageSize);
+
 public interface ITransactionRepository
 {
     Task<CanonicalTransaction?> GetByTenantAndIdAsync(TenantId tenantId, Guid id, CancellationToken cancellationToken = default);
     Task<CanonicalTransaction?> GetByTenantAndExternalReferenceAsync(TenantId tenantId, string externalReference, CancellationToken cancellationToken = default);
+    Task<TransactionListResult> ListByTenantAsync(TenantId tenantId, TransactionListQuery query, CancellationToken cancellationToken = default);
     Task AddAsync(CanonicalTransaction transaction, CancellationToken cancellationToken = default);
 }
 
