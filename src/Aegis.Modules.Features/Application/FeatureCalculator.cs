@@ -58,7 +58,16 @@ public sealed class FeatureCalculator : IFeatureCalculator
         var debitSum1h = txs1h.Where(t => t.Direction == TransactionDirection.DEBIT).Sum(t => t.Amount.Amount);
         var passThrough = creditSum1h <= 0 ? 0m : Math.Min(1m, debitSum1h / creditSum1h);
 
+        var triggering = txs.FirstOrDefault(t => t.Timestamp == asOfTimestamp)
+                         ?? txs.OrderByDescending(t => t.Timestamp).FirstOrDefault();
+        var counterpartyCountry = triggering?.CounterpartyCountry?.Trim().ToUpperInvariant() ?? "";
+        var transactionAmount = triggering?.Amount.Amount ?? 0m;
+
         var ids = txs24.Select(t => t.Id.ToString()).ToList();
+        if (triggering is not null && !ids.Contains(triggering.Id.ToString()))
+        {
+            ids.Add(triggering.Id.ToString());
+        }
 
         var features = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
@@ -67,7 +76,9 @@ public sealed class FeatureCalculator : IFeatureCalculator
             ["max_single_amount_24h"] = max,
             ["credit_sum_1h"] = creditSum1h,
             ["debit_sum_1h"] = debitSum1h,
-            ["pass_through_ratio_1h"] = passThrough
+            ["pass_through_ratio_1h"] = passThrough,
+            ["counterparty_country"] = counterpartyCountry,
+            ["transaction_amount"] = transactionAmount
         };
 
         return new FeatureCalculationResult(features, ids);

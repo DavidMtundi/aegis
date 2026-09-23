@@ -8,6 +8,7 @@ public sealed class StructuringRuleSeeder : IStructuringRuleSeeder
 {
     public const string RuleCode = "STRUCTURING_001";
     public const string RapidMovementCode = "RAPID_MOVEMENT_001";
+    public const string HighRiskGeographyCode = "HIGH_RISK_GEOGRAPHY_001";
 
     private readonly IAmlRuleRepository _rules;
     private readonly IAmlRuleVersionRepository _versions;
@@ -24,6 +25,7 @@ public sealed class StructuringRuleSeeder : IStructuringRuleSeeder
     {
         await EnsureStructuringAsync(tenantId, cancellationToken);
         await EnsureRapidMovementAsync(tenantId, cancellationToken);
+        await EnsureHighRiskGeographyAsync(tenantId, cancellationToken);
     }
 
     private async Task EnsureStructuringAsync(TenantId tenantId, CancellationToken cancellationToken)
@@ -94,6 +96,49 @@ public sealed class StructuringRuleSeeder : IStructuringRuleSeeder
             tenantId, RapidMovementCode, "Rapid movement / pass-through",
             "Detects funds entering and leaving within one hour.",
             ScenarioType.RAPID_MOVEMENT, "system-seed");
+        rule.Approve();
+        rule.Activate();
+
+        var version = AmlRuleVersion.CreateActive(
+            rule.Id, tenantId, 1, definition, "system-seed", DateTimeOffset.UtcNow);
+
+        await _rules.AddAsync(rule, cancellationToken);
+        await _versions.AddAsync(version, cancellationToken);
+    }
+
+    private async Task EnsureHighRiskGeographyAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        var existing = await _rules.GetByTenantAndCodeAsync(tenantId, HighRiskGeographyCode, cancellationToken);
+        if (existing is not null) return;
+
+        var definition = new RuleDefinition
+        {
+            Code = HighRiskGeographyCode,
+            Name = "High-risk geography",
+            Focus = FocusType.CUSTOMER,
+            Schedule = new RuleSchedule { Frequency = "realtime", Lookback = "24h" },
+            Conditions = new RuleConditionGroup
+            {
+                All = new List<RuleCondition>
+                {
+                    new()
+                    {
+                        Field = "counterparty_country",
+                        Operator = "IN",
+                        Values = new List<object> { "KP", "IR", "SY" }
+                    },
+                    new() { Field = "transaction_amount", Operator = ">=", Value = 10_000m }
+                }
+            },
+            Severity = AlertSeverity.HIGH,
+            RiskScore = 70,
+            Actions = new List<string> { "CREATE_ALERT" }
+        };
+
+        var rule = AmlRule.CreateDraft(
+            tenantId, HighRiskGeographyCode, "High-risk geography",
+            "Detects transactions involving configured high-risk counterparty jurisdictions.",
+            ScenarioType.HIGH_RISK_GEOGRAPHY, "system-seed");
         rule.Approve();
         rule.Activate();
 
