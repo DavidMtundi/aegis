@@ -1,6 +1,10 @@
+using System.Text;
+using Aegis.Api.Middleware;
+using Aegis.Infrastructure;
+using Aegis.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 
-// ─── Logging bootstrap ────────────────────────────────────────────────────────
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();
@@ -11,55 +15,36 @@ try
 
     var builder = WebApplication.CreateBuilder(args);
 
-    // ─── Serilog ─────────────────────────────────────────────────────────────
     builder.Host.UseSerilog((ctx, lc) => lc
         .ReadFrom.Configuration(ctx.Configuration)
         .Enrich.FromLogContext()
         .WriteTo.Console());
 
-    // ─── Core services ────────────────────────────────────────────────────────
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(c =>
     {
         c.SwaggerDoc("v1", new()
         {
-            Title    = "Aegis Financial Crime Compliance API",
-            Version  = "v1",
+            Title = "Aegis Financial Crime Compliance API",
+            Version = "v1",
             Description = "Multi-tenant AML, KYC/KYB, screening, risk and case management platform."
         });
     });
 
-    // ─── Authentication ───────────────────────────────────────────────────────
-    builder.Services.AddAuthentication()
-        .AddJwtBearer(opts =>
-        {
-            opts.Authority = builder.Configuration["Jwt:Authority"];
-            opts.Audience  = builder.Configuration["Jwt:Audience"];
-        });
-
+    builder.Services.AddAegisInfrastructure(builder.Configuration);
     builder.Services.AddAuthorization();
-
-    // ─── CORS ─────────────────────────────────────────────────────────────────
     builder.Services.AddCors(o => o.AddPolicy("Default", p =>
         p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
 
-    // ─── Health checks ────────────────────────────────────────────────────────
-    builder.Services.AddHealthChecks();
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // TODO (Milestone 1): Register module services
-    // builder.Services.AddIdentityModule(builder.Configuration);
-    // builder.Services.AddTransactionsModule(builder.Configuration);
-    // builder.Services.AddAmlModule(builder.Configuration);
-    // builder.Services.AddAlertsModule(builder.Configuration);
-    // builder.Services.AddCasesModule(builder.Configuration);
-    // builder.Services.AddAuditModule(builder.Configuration);
-    // ─────────────────────────────────────────────────────────────────────────
-
     var app = builder.Build();
 
-    // ─── Middleware pipeline ──────────────────────────────────────────────────
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AegisDbContext>();
+        db.Database.Migrate();
+    }
+
     app.UseSerilogRequestLogging();
 
     if (app.Environment.IsDevelopment())
@@ -72,22 +57,23 @@ try
         });
     }
 
-    app.UseHttpsRedirection();
     app.UseCors("Default");
     app.UseAuthentication();
+    app.UseMiddleware<TenantContextMiddleware>();
     app.UseAuthorization();
 
     app.MapControllers();
     app.MapHealthChecks("/health");
 
-    // ─── Versioned API base route ─────────────────────────────────────────────
-    app.MapGet("/api/v1/status", () => new
+    app.MapGet("/api/v1/status", (Aegis.Shared.Security.ITenantContext tenantContext) => new
     {
-        status    = "healthy",
-        version   = "1.0.0",
-        platform  = "Aegis Financial Crime Compliance",
+        status = "healthy",
+        version = "1.0.0",
+        platform = "Aegis Financial Crime Compliance",
+        authenticated = tenantContext.IsAuthenticated,
+        tenantId = tenantContext.IsAuthenticated ? tenantContext.TenantId.Value : (Guid?)null,
         timestamp = DateTimeOffset.UtcNow
-    }).WithName("GetStatus").WithTags("System");
+    }).RequireAuthorization().WithName("GetStatus").WithTags("System");
 
     app.Run();
 }
@@ -99,3 +85,5 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+public partial class Program;

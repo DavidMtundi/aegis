@@ -16,12 +16,13 @@ public sealed class Tenant : AggregateRoot
 
     public static Tenant Create(string name, string slug, string plan, string contactEmail, TenantSettings settings)
     {
+        var id = Guid.NewGuid();
         return new Tenant
         {
-            Id = Guid.NewGuid(),
-            TenantId = TenantId.New(), // A tenant owns itself basically
+            Id = id,
+            TenantId = new TenantId(id),
             Name = name,
-            Slug = slug,
+            Slug = slug.Trim().ToLowerInvariant(),
             Status = TenantStatus.ONBOARDING,
             Plan = plan,
             ContactEmail = contactEmail,
@@ -29,5 +30,11 @@ public sealed class Tenant : AggregateRoot
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };
+    }
+
+    public void Activate()
+    {
+        Status = TenantStatus.ACTIVE;
+        UpdatedAt = DateTimeOffset.UtcNow;
     }
 }

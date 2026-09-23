@@ -32,4 +32,8 @@ public static class AuditEventTypes
     public const string ACCOUNT_CREATED = nameof(ACCOUNT_CREATED);
     public const string TRANSACTION_INGESTED = nameof(TRANSACTION_INGESTED);
     public const string TRANSACTION_REJECTED = nameof(TRANSACTION_REJECTED);
+
+    public const string TENANT_CREATED = nameof(TENANT_CREATED);
+    public const string USER_CREATED = nameof(USER_CREATED);
+    public const string USER_LOGIN = nameof(USER_LOGIN);
 }
