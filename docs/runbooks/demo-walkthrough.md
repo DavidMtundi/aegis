@@ -7,7 +7,7 @@
 ## Prerequisites
 
 1. Postgres up (`docker compose up -d` in `aegis`).
-2. API in **Development** on `http://127.0.0.1:5092`:
+2. API in **Development** on `http://127.0.0.1:5092` (restart after pulling so all three scenario seeds load):
 
    ```bash
    cd aegis
