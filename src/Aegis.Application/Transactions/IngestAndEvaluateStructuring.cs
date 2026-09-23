@@ -1,5 +1,7 @@
 namespace Aegis.Application.Transactions;
 
+using Aegis.Modules.Alerts.Application;
+using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Aml.Application;
 using Aegis.Modules.Aml.Domain;
 using Aegis.Modules.Aml.Engine;
@@ -63,6 +65,7 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
     private readonly IStructuringRuleSeeder _seeder;
     private readonly IAmlRuleVersionRepository _ruleVersions;
     private readonly IRuleEvaluationEngine _engine;
+    private readonly IAlertService _alerts;
     private readonly IAuditWriter _audit;
     private readonly IUnitOfWork _uow;
 
@@ -74,6 +77,7 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
         IStructuringRuleSeeder seeder,
         IAmlRuleVersionRepository ruleVersions,
         IRuleEvaluationEngine engine,
+        IAlertService alerts,
         IAuditWriter audit,
         IUnitOfWork uow)
     {
@@ -84,6 +88,7 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
         _seeder = seeder;
         _ruleVersions = ruleVersions;
         _engine = engine;
+        _alerts = alerts;
         _audit = audit;
         _uow = uow;
     }
@@ -165,6 +170,8 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
             .ToList();
 
         var evaluations = new List<EvaluationSummary>();
+        var alertIds = new List<Guid>();
+
         foreach (var version in structuring)
         {
             var result = await _engine.EvaluateAsync(
@@ -182,15 +189,53 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
                 result.IsTriggered,
                 calculated.Features,
                 calculated.TransactionIds));
+
+            if (!result.IsTriggered)
+            {
+                continue;
+            }
+
+            var evidence = AlertEvidenceMapper.FromEvaluation(
+                result,
+                calculated.TransactionIds,
+                calculated.Features);
+
+            // Bucket by business tx timestamp UTC date (not wall-clock ingest time).
+            var upsert = await _alerts.CreateOrGetAsync(
+                command.TenantId,
+                result,
+                evidence,
+                version.Definition.Severity,
+                version.Definition.RiskScore,
+                bucketTimestamp: tx.Timestamp,
+                cancellationToken);
+
+            alertIds.Add(upsert.AlertId);
+
+            if (upsert.WasCreated)
+            {
+                await _audit.AppendAsync(AuditEvent.Create(
+                    command.TenantId.Value,
+                    AuditEventTypes.ALERT_CREATED,
+                    nameof(Alert),
+                    upsert.AlertId.ToString(),
+                    command.ActorId.ToString(),
+                    command.ActorRole,
+                    null,
+                    $"{{\"ruleCode\":\"{result.RuleCode}\",\"ruleVersionId\":\"{result.RuleVersionId}\"}}",
+                    "Alert created from structuring evaluation",
+                    command.CorrelationId), cancellationToken);
+            }
         }
 
+        // Single commit: tx + TRANSACTION_INGESTED + alert(s) + ALERT_CREATED (if new).
         await _uow.SaveChangesAsync(cancellationToken);
 
         return new IngestAndEvaluateStructuringResult(
             tx.Id,
             WasCreated: true,
             evaluations,
-            AlertIds: Array.Empty<Guid>());
+            alertIds);
     }
 }
 

@@ -1,5 +1,7 @@
 namespace Aegis.Infrastructure.Persistence.Repositories;
 
+using Aegis.Modules.Alerts.Application;
+using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Aml.Application;
 using Aegis.Modules.Aml.Domain;
 using Aegis.Modules.Audit.Application;
@@ -77,6 +79,13 @@ public sealed class AuditEventRepository : IAuditEventRepository
     public Task<AuditEvent?> GetByTenantAndIdAsync(Guid tenantId, Guid id, CancellationToken cancellationToken = default)
         => _db.AuditEvents.AsNoTracking()
             .FirstOrDefaultAsync(e => e.TenantId == tenantId && e.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<AuditEvent>> ListByTenantAsync(Guid tenantId, int take = 100, CancellationToken cancellationToken = default)
+        => await _db.AuditEvents.AsNoTracking()
+            .Where(e => e.TenantId == tenantId)
+            .OrderByDescending(e => e.OccurredAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
 }
 
 public sealed class CustomerRepository : Aegis.Modules.Customers.Application.ICustomerRepository
@@ -184,4 +193,34 @@ public sealed class AmlRuleVersionRepository : IAmlRuleVersionRepository
 
     public async Task AddAsync(AmlRuleVersion version, CancellationToken cancellationToken = default)
         => await _db.AmlRuleVersions.AddAsync(version, cancellationToken);
+}
+
+public sealed class AlertRepository : IAlertRepository
+{
+    private readonly AegisDbContext _db;
+    public AlertRepository(AegisDbContext db) => _db = db;
+
+    public Task<Alert?> GetByTenantAndIdAsync(TenantId tenantId, Guid id, CancellationToken cancellationToken = default)
+        => _db.Alerts.FirstOrDefaultAsync(a => a.TenantId == tenantId && a.Id == id, cancellationToken);
+
+    public Task<Alert?> GetByTenantAndDeduplicationKeyAsync(TenantId tenantId, string deduplicationKey, CancellationToken cancellationToken = default)
+    {
+        var local = _db.Alerts.Local.FirstOrDefault(a => a.TenantId == tenantId && a.DeduplicationKey == deduplicationKey);
+        if (local is not null)
+        {
+            return Task.FromResult<Alert?>(local);
+        }
+
+        return _db.Alerts.FirstOrDefaultAsync(a => a.TenantId == tenantId && a.DeduplicationKey == deduplicationKey, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Alert>> ListByTenantAsync(TenantId tenantId, int take = 100, CancellationToken cancellationToken = default)
+        => await _db.Alerts.AsNoTracking()
+            .Where(a => a.TenantId == tenantId)
+            .OrderByDescending(a => a.TriggeredAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+    public async Task AddAsync(Alert alert, CancellationToken cancellationToken = default)
+        => await _db.Alerts.AddAsync(alert, cancellationToken);
 }

@@ -13,4 +13,5 @@ public interface IAuditWriter
 public interface IAuditEventRepository
 {
     Task<AuditEvent?> GetByTenantAndIdAsync(Guid tenantId, Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AuditEvent>> ListByTenantAsync(Guid tenantId, int take = 100, CancellationToken cancellationToken = default);
 }

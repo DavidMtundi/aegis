@@ -7,6 +7,7 @@ using Aegis.Infrastructure.Aml;
 using Aegis.Infrastructure.Auth;
 using Aegis.Infrastructure.Persistence;
 using Aegis.Infrastructure.Persistence.Repositories;
+using Aegis.Modules.Alerts.Application;
 using Aegis.Modules.Aml.Application;
 using Aegis.Modules.Aml.Engine;
 using Aegis.Modules.Audit.Application;
@@ -45,6 +46,8 @@ public static class DependencyInjection
         services.AddScoped<IAmlRuleRepository, AmlRuleRepository>();
         services.AddScoped<IAmlRuleVersionRepository, AmlRuleVersionRepository>();
         services.AddScoped<IStructuringRuleSeeder, StructuringRuleSeeder>();
+        services.AddScoped<IAlertRepository, AlertRepository>();
+        services.AddScoped<IAlertService, AlertService>();
         services.AddScoped<IFeatureCalculator, FeatureCalculator>();
         services.AddSingleton<ConditionEvaluator>();
         services.AddSingleton<ConditionGroupEvaluator>();

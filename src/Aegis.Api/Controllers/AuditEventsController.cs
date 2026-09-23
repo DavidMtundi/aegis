@@ -65,6 +65,18 @@ public sealed class AuditEventsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = audit.Id }, ToResponse(audit));
     }
 
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<AuditEventResponse>>> List(CancellationToken ct)
+    {
+        if (!_tenantContext.IsAuthenticated)
+        {
+            return Unauthorized();
+        }
+
+        var events = await _auditEvents.ListByTenantAsync(_tenantContext.TenantId.Value, take: 100, ct);
+        return Ok(events.Select(ToResponse).ToList());
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<AuditEventResponse>> GetById(Guid id, CancellationToken ct)
     {

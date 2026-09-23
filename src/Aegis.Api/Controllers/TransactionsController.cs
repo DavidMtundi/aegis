@@ -50,7 +50,8 @@ public sealed class TransactionsController : ControllerBase
         Guid TransactionId,
         bool WasCreated,
         string ExternalReference,
-        IReadOnlyList<EvaluationDto> Evaluations);
+        IReadOnlyList<EvaluationDto> Evaluations,
+        IReadOnlyList<Guid> AlertIds);
 
     [HttpPost]
     public async Task<ActionResult<IngestResponse>> Ingest([FromBody] IngestRequest request, CancellationToken ct)
@@ -94,7 +95,12 @@ public sealed class TransactionsController : ControllerBase
                     e.Features))
                 .ToList();
 
-            var response = new IngestResponse(result.TransactionId, result.WasCreated, externalReference, evaluations);
+            var response = new IngestResponse(
+                result.TransactionId,
+                result.WasCreated,
+                externalReference,
+                evaluations,
+                result.AlertIds);
             return result.WasCreated
                 ? Created($"/api/v1/transactions/{result.TransactionId}", response)
                 : Ok(response);

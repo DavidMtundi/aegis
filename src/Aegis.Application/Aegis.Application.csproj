@@ -6,6 +6,7 @@
     <ProjectReference Include="..\Aegis.Modules.Transactions\Aegis.Modules.Transactions.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Features\Aegis.Modules.Features.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Aml\Aegis.Modules.Aml.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Alerts\Aegis.Modules.Alerts.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Audit\Aegis.Modules.Audit.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Identity\Aegis.Modules.Identity.csproj" />
   </ItemGroup>

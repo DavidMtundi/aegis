@@ -29,6 +29,7 @@
     <ProjectReference Include="..\Aegis.Modules.Customers\Aegis.Modules.Customers.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Transactions\Aegis.Modules.Transactions.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Aml\Aegis.Modules.Aml.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Alerts\Aegis.Modules.Alerts.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Features\Aegis.Modules.Features.csproj" />
   </ItemGroup>
 </Project>
