@@ -264,6 +264,25 @@ public sealed class AmlRuleVersionRepository : IAmlRuleVersionRepository
                 v => v.TenantId == tenantId && v.RuleId == ruleId && v.Status == RuleVersionStatus.ACTIVE,
                 cancellationToken);
 
+    public Task<AmlRuleVersion?> GetByTenantAndIdAsync(TenantId tenantId, Guid versionId, CancellationToken cancellationToken = default)
+        => _db.AmlRuleVersions.FirstOrDefaultAsync(v => v.TenantId == tenantId && v.Id == versionId, cancellationToken);
+
+    public async Task<IReadOnlyList<AmlRuleVersion>> ListByTenantAndRuleIdAsync(
+        TenantId tenantId, Guid ruleId, CancellationToken cancellationToken = default)
+        => await _db.AmlRuleVersions.AsNoTracking()
+            .Where(v => v.TenantId == tenantId && v.RuleId == ruleId)
+            .OrderByDescending(v => v.VersionNumber)
+            .ToListAsync(cancellationToken);
+
+    public async Task<int> GetMaxVersionNumberAsync(TenantId tenantId, Guid ruleId, CancellationToken cancellationToken = default)
+    {
+        var versions = await _db.AmlRuleVersions
+            .Where(v => v.TenantId == tenantId && v.RuleId == ruleId)
+            .Select(v => v.VersionNumber)
+            .ToListAsync(cancellationToken);
+        return versions.Count == 0 ? 0 : versions.Max();
+    }
+
     public async Task AddAsync(AmlRuleVersion version, CancellationToken cancellationToken = default)
         => await _db.AmlRuleVersions.AddAsync(version, cancellationToken);
 }

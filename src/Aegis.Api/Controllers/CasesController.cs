@@ -154,6 +154,7 @@ public sealed class CasesController : ControllerBase
     public async Task<ActionResult<CaseResponse>> Close(Guid id, [FromBody] CloseCaseRequest request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
+        if (!TenantAuthorization.CanCloseCases(_tenant)) return Forbid();
         if (string.IsNullOrWhiteSpace(request.Conclusion))
             return BadRequest("Conclusion is required.");
         if (!Enum.TryParse<CaseDisposition>(request.Disposition, true, out var disposition))

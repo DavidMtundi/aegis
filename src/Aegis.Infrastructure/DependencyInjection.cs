@@ -54,6 +54,7 @@ public static class DependencyInjection
         services.AddSingleton<ConditionEvaluator>();
         services.AddSingleton<ConditionGroupEvaluator>();
         services.AddSingleton<ExclusionEvaluator>();
+        services.AddSingleton<RuleDefinitionValidator>();
         services.AddSingleton<IRuleEvaluationEngine, RuleEvaluationEngine>();
         services.AddScoped<IIngestAndEvaluateStructuring, IngestAndEvaluateStructuring>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();

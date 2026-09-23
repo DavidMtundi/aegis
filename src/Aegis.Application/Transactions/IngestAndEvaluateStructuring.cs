@@ -66,6 +66,7 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
     private readonly IAmlRuleVersionRepository _ruleVersions;
     private readonly IRuleEvaluationEngine _engine;
     private readonly IAlertService _alerts;
+    private readonly IAlertRepository _alertRepository;
     private readonly IAuditWriter _audit;
     private readonly IUnitOfWork _uow;
 
@@ -78,6 +79,7 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
         IAmlRuleVersionRepository ruleVersions,
         IRuleEvaluationEngine engine,
         IAlertService alerts,
+        IAlertRepository alertRepository,
         IAuditWriter audit,
         IUnitOfWork uow)
     {
@@ -89,6 +91,7 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
         _ruleVersions = ruleVersions;
         _engine = engine;
         _alerts = alerts;
+        _alertRepository = alertRepository;
         _audit = audit;
         _uow = uow;
     }
@@ -244,6 +247,31 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
                 WasCreated: false,
                 Evaluations: Array.Empty<EvaluationSummary>(),
                 AlertIds: Array.Empty<Guid>());
+        }
+        catch (UniqueConstraintViolationException ex) when (ex.IsAlertDeduplicationKey)
+        {
+            // Concurrent alert create for same dedupe key — re-read winners and return.
+            var recovered = new List<Guid>();
+            foreach (var evaluation in evaluations.Where(e => e.IsTriggered))
+            {
+                var key = AlertDeduplicationKey.Build(
+                    command.TenantId,
+                    evaluation.RuleId,
+                    evaluation.RuleVersionId,
+                    FocusType.CUSTOMER,
+                    customer.Id.ToString(),
+                    tx.Timestamp);
+                var existingAlert = await _alertRepository.GetByTenantAndDeduplicationKeyAsync(
+                    command.TenantId, key, cancellationToken);
+                if (existingAlert is not null)
+                    recovered.Add(existingAlert.Id);
+            }
+
+            return new IngestAndEvaluateStructuringResult(
+                tx.Id,
+                WasCreated: true,
+                evaluations,
+                recovered.Count > 0 ? recovered : alertIds);
         }
 
         return new IngestAndEvaluateStructuringResult(

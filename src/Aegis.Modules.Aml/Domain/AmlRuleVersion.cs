@@ -101,7 +101,7 @@ public sealed class AmlRuleVersion : EntityBase
         };
     }
 
-    internal void Approve(string approvedBy)
+    public void Approve(string approvedBy)
     {
         Status     = RuleVersionStatus.APPROVED;
         ApprovedAt = DateTimeOffset.UtcNow;
@@ -109,14 +109,14 @@ public sealed class AmlRuleVersion : EntityBase
         UpdatedAt  = DateTimeOffset.UtcNow;
     }
 
-    internal void Activate(DateTimeOffset effectiveFrom)
+    public void Activate(DateTimeOffset effectiveFrom)
     {
         Status        = RuleVersionStatus.ACTIVE;
         EffectiveFrom = effectiveFrom;
         UpdatedAt     = DateTimeOffset.UtcNow;
     }
 
-    internal void Supersede(DateTimeOffset effectiveTo)
+    public void Supersede(DateTimeOffset effectiveTo)
     {
         Status      = RuleVersionStatus.SUPERSEDED;
         EffectiveTo = effectiveTo;

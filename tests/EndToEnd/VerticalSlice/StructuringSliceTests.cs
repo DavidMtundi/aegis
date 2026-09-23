@@ -43,11 +43,13 @@ public sealed class StructuringSliceTests : IAsyncLifetime
         }
 
         Assert.NotNull(lastIngest);
-        var features = lastIngest.Value.GetProperty("evaluations")[0].GetProperty("features");
+        var evaluations = lastIngest.Value.GetProperty("evaluations").EnumerateArray().ToList();
+        var structuringEval = evaluations.First(e => e.GetProperty("ruleCode").GetString() == "STRUCTURING_001");
+        var features = structuringEval.GetProperty("features");
         Assert.Equal(7, features.GetProperty("transaction_count_24h").GetInt32());
         Assert.Equal(665_000m, features.GetProperty("transaction_sum_24h").GetDecimal());
         Assert.Equal(95_000m, features.GetProperty("max_single_amount_24h").GetDecimal());
-        Assert.True(lastIngest.Value.GetProperty("evaluations")[0].GetProperty("isTriggered").GetBoolean());
+        Assert.True(structuringEval.GetProperty("isTriggered").GetBoolean());
 
         var alerts = await SliceHelpers.ListAlertsAsync(tenant);
         Assert.Single(alerts);
@@ -105,7 +107,9 @@ public sealed class StructuringSliceTests : IAsyncLifetime
         }
 
         Assert.NotNull(last);
-        Assert.True(last.Value.GetProperty("evaluations")[0].GetProperty("isTriggered").GetBoolean());
+        var structuringEval = last.Value.GetProperty("evaluations").EnumerateArray()
+            .First(e => e.GetProperty("ruleCode").GetString() == "STRUCTURING_001");
+        Assert.True(structuringEval.GetProperty("isTriggered").GetBoolean());
         Assert.Single(last.Value.GetProperty("alertIds").EnumerateArray());
         Assert.Single(await SliceHelpers.ListAlertsAsync(tenant));
     }

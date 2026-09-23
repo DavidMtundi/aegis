@@ -42,8 +42,9 @@ public sealed class RuleDefinitionValidator
         // ── Schedule ──────────────────────────────────────────────────────────
         if (definition.Schedule is not null)
         {
-            if (!IsValidDuration(definition.Schedule.Frequency))
-                errors.Add($"Schedule.Frequency '{definition.Schedule.Frequency}' is invalid. Expected format: '7d', '24h', '30m'.");
+            if (!IsValidDuration(definition.Schedule.Frequency)
+                && !string.Equals(definition.Schedule.Frequency, "realtime", StringComparison.OrdinalIgnoreCase))
+                errors.Add($"Schedule.Frequency '{definition.Schedule.Frequency}' is invalid. Expected format: '7d', '24h', '30m', or 'realtime'.");
 
             if (!IsValidDuration(definition.Schedule.Lookback))
                 errors.Add($"Schedule.Lookback '{definition.Schedule.Lookback}' is invalid. Expected format: '14d', '24h', '30m'.");
