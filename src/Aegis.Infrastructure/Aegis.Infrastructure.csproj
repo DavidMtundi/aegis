@@ -25,5 +25,7 @@
     <ProjectReference Include="..\Aegis.Shared\Aegis.Shared.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Audit\Aegis.Modules.Audit.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Identity\Aegis.Modules.Identity.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Customers\Aegis.Modules.Customers.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Transactions\Aegis.Modules.Transactions.csproj" />
   </ItemGroup>
 </Project>

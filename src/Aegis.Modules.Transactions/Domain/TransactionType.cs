@@ -7,6 +7,7 @@ public enum TransactionType
 {
     EFT,
     WIRE,
+    TRANSFER,
     CASH_DEPOSIT,
     CASH_WITHDRAWAL,
     MOBILE,

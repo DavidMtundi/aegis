@@ -6,7 +6,9 @@ using Aegis.Infrastructure.Auth;
 using Aegis.Infrastructure.Persistence;
 using Aegis.Infrastructure.Persistence.Repositories;
 using Aegis.Modules.Audit.Application;
+using Aegis.Modules.Customers.Application;
 using Aegis.Modules.Identity.Application;
+using Aegis.Modules.Transactions.Application;
 using Aegis.Shared.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +30,11 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<IAuditEventRepository, AuditEventRepository>();
+        services.AddScoped<ICustomerRepository, CustomerRepository>();
+        services.AddScoped<IAccountRepository, AccountRepository>();
+        services.AddScoped<TransactionRepository>();
+        services.AddScoped<ITransactionRepository>(sp => sp.GetRequiredService<TransactionRepository>());
+        services.AddScoped<ITransactionReadPort>(sp => sp.GetRequiredService<TransactionRepository>());
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<PasswordHasher>();
 

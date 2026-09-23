@@ -1,7 +1,9 @@
 namespace Aegis.Infrastructure.Persistence;
 
 using Aegis.Modules.Audit.Domain;
+using Aegis.Modules.Customers.Domain;
 using Aegis.Modules.Identity.Domain;
+using Aegis.Modules.Transactions.Domain;
 using Microsoft.EntityFrameworkCore;
 
 public sealed class AegisDbContext : DbContext
@@ -15,6 +17,9 @@ public sealed class AegisDbContext : DbContext
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<CanonicalTransaction> Transactions => Set<CanonicalTransaction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
