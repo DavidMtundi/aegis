@@ -19,6 +19,17 @@ dotnet ef database update --project src/Aegis.Infrastructure --startup-project s
 dotnet run --project src/Aegis.Api
 ```
 
+### Supervisor demo (local)
+
+With API running in Development:
+
+```bash
+chmod +x scripts/demo-seed.sh
+./scripts/demo-seed.sh
+```
+
+Then follow [`docs/runbooks/demo-walkthrough.md`](docs/runbooks/demo-walkthrough.md) in the console (login → alert → case → close → audit).
+
 ### Vertical-slice E2E tests
 
 With compose Postgres running (default `localhost:5432`, user/password `aegis` / `aegis_dev_password`):
