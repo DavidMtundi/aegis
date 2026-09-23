@@ -229,7 +229,26 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
         }
 
         // Single commit: tx + TRANSACTION_INGESTED + alert(s) + ALERT_CREATED (if new).
-        await _uow.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _uow.SaveChangesAsync(cancellationToken);
+        }
+        catch (UniqueConstraintViolationException ex) when (ex.IsTransactionExternalReference)
+        {
+            // Concurrent duplicate externalReference: DB unique index is the authority.
+            var winner = await _transactions.GetByTenantAndExternalReferenceAsync(
+                command.TenantId, payload.ExternalReference, cancellationToken);
+            if (winner is null)
+            {
+                throw;
+            }
+
+            return new IngestAndEvaluateStructuringResult(
+                winner.Id,
+                WasCreated: false,
+                Evaluations: Array.Empty<EvaluationSummary>(),
+                AlertIds: Array.Empty<Guid>());
+        }
 
         return new IngestAndEvaluateStructuringResult(
             tx.Id,

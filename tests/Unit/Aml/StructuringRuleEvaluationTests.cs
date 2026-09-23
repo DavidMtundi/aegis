@@ -14,7 +14,10 @@ public sealed class StructuringRuleEvaluationTests
         _engine = new RuleEvaluationEngine(new ConditionGroupEvaluator(cond), new ExclusionEvaluator(cond));
     }
 
-    private static AmlRuleVersion StructuringVersion()
+    private static AmlRuleVersion StructuringVersion(
+        int countThreshold = 5,
+        decimal sumThreshold = 450000m,
+        decimal maxThreshold = 100000m)
     {
         var def = new RuleDefinition
         {
@@ -26,9 +29,9 @@ public sealed class StructuringRuleEvaluationTests
             {
                 All = new List<RuleCondition>
                 {
-                    new() { Field = "transaction_count_24h", Operator = ">=", Value = 5 },
-                    new() { Field = "transaction_sum_24h", Operator = ">=", Value = 450000m },
-                    new() { Field = "max_single_amount_24h", Operator = "<", Value = 100000m }
+                    new() { Field = "transaction_count_24h", Operator = ">=", Value = countThreshold },
+                    new() { Field = "transaction_sum_24h", Operator = ">=", Value = sumThreshold },
+                    new() { Field = "max_single_amount_24h", Operator = "<", Value = maxThreshold }
                 }
             },
             Severity = AlertSeverity.HIGH,
@@ -43,6 +46,24 @@ public sealed class StructuringRuleEvaluationTests
             def,
             "system-seed",
             DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
+    public async Task Changing_thresholds_in_rule_definition_changes_detection_without_engine_changes()
+    {
+        var features = new DictionaryFeatureContext(new Dictionary<string, object>
+        {
+            ["transaction_count_24h"] = 5,
+            ["transaction_sum_24h"] = 450_000m,
+            ["max_single_amount_24h"] = 90_000m
+        });
+        var focus = Guid.NewGuid().ToString();
+
+        Assert.True((await _engine.EvaluateAsync(
+            StructuringVersion(), features, focus, FocusType.CUSTOMER.ToString())).IsTriggered);
+        Assert.False((await _engine.EvaluateAsync(
+            StructuringVersion(countThreshold: 10, sumThreshold: 1_000_000m, maxThreshold: 50_000m),
+            features, focus, FocusType.CUSTOMER.ToString())).IsTriggered);
     }
 
     [Fact]

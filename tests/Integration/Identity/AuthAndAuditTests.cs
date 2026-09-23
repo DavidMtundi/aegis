@@ -103,16 +103,14 @@ public sealed class AuthAndAuditTests : IAsyncLifetime
 
         using var clientA = _factory.CreateClient();
         clientA.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
-        var createAudit = await clientA.PostAsJsonAsync("/api/v1/audit-events", new
-        {
-            eventType = "SMOKE_TEST",
-            entityType = "Smoke",
-            entityId = Guid.NewGuid().ToString(),
-            reason = "integration"
-        });
-        Assert.Equal(HttpStatusCode.Created, createAudit.StatusCode);
-        var auditBody = await createAudit.Content.ReadFromJsonAsync<JsonElement>();
-        var auditId = auditBody.GetProperty("id").GetGuid();
+
+        // Audit is append-only via trusted paths (e.g. login). Clients cannot invent audit rows.
+        var listA = await clientA.GetAsync("/api/v1/audit-events");
+        Assert.Equal(HttpStatusCode.OK, listA.StatusCode);
+        var auditsA = await listA.Content.ReadFromJsonAsync<JsonElement>();
+        var loginAudit = auditsA.EnumerateArray()
+            .First(e => e.GetProperty("eventType").GetString() == "USER_LOGIN");
+        var auditId = loginAudit.GetProperty("id").GetGuid();
 
         var getOwn = await clientA.GetAsync($"/api/v1/audit-events/{auditId}");
         Assert.Equal(HttpStatusCode.OK, getOwn.StatusCode);
@@ -121,6 +119,15 @@ public sealed class AuthAndAuditTests : IAsyncLifetime
         clientB.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenB);
         var getCrossTenant = await clientB.GetAsync($"/api/v1/audit-events/{auditId}");
         Assert.Equal(HttpStatusCode.NotFound, getCrossTenant.StatusCode);
+
+        var invent = await clientA.PostAsJsonAsync("/api/v1/audit-events", new
+        {
+            eventType = "SMOKE_TEST",
+            entityType = "Smoke",
+            entityId = Guid.NewGuid().ToString(),
+            reason = "should be rejected"
+        });
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, invent.StatusCode);
 
         var status = await clientA.GetAsync("/api/v1/status");
         Assert.Equal(HttpStatusCode.OK, status.StatusCode);

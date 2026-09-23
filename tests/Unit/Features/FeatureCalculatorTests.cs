@@ -102,4 +102,31 @@ public sealed class FeatureCalculatorTests
         Assert.Equal(450_000m, Convert.ToDecimal(result.Features["transaction_sum_24h"]));
         Assert.Equal(90_000m, Convert.ToDecimal(result.Features["max_single_amount_24h"]));
     }
+
+    [Fact]
+    public async Task Window_excludes_transactions_older_than_lookback_and_includes_asOf()
+    {
+        var tenantId = new TenantId(Guid.NewGuid());
+        var customerId = new CustomerId(Guid.NewGuid());
+        var asOf = DateTimeOffset.Parse("2026-09-23T12:00:00Z");
+        var window = TimeSpan.FromHours(24);
+
+        var txs = new[]
+        {
+            Tx(tenantId, customerId, asOf.AddHours(-24).AddSeconds(-1), 10_000m, "too-old"),
+            Tx(tenantId, customerId, asOf.AddHours(-24), 20_000m, "boundary-start"),
+            Tx(tenantId, customerId, asOf.AddHours(-12), 30_000m, "mid"),
+            Tx(tenantId, customerId, asOf, 40_000m, "asof"),
+            Tx(tenantId, customerId, asOf.AddSeconds(1), 50_000m, "after-asof")
+        };
+
+        var calc = new FeatureCalculator(new StubReadPort(txs));
+        var result = await calc.CalculateAsync(
+            tenantId, FocusType.CUSTOMER, customerId.Value.ToString(), asOf, window);
+
+        // Inclusive [asOf-24h, asOf]: boundary-start, mid, asof (3). too-old and after-asof excluded.
+        Assert.Equal(3, Convert.ToInt32(result.Features["transaction_count_24h"]));
+        Assert.Equal(90_000m, Convert.ToDecimal(result.Features["transaction_sum_24h"]));
+        Assert.Equal(40_000m, Convert.ToDecimal(result.Features["max_single_amount_24h"]));
+    }
 }
