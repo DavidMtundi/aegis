@@ -14,9 +14,22 @@ This is the core Aegis platform — a modular monolith that will eventually deco
 # Prerequisites: .NET 9 SDK, Docker, PostgreSQL
 dotnet restore
 docker-compose up -d   # starts PostgreSQL + Redis
-dotnet ef database update --project src/Aegis.Infrastructure
+dotnet ef database update --project src/Aegis.Infrastructure --startup-project src/Aegis.Api
 dotnet run --project src/Aegis.Api
 ```
+
+### Vertical-slice E2E tests
+
+With compose Postgres running (default `localhost:5432`, user/password `aegis` / `aegis_dev_password`):
+
+```bash
+dotnet ef database update --project src/Aegis.Infrastructure --startup-project src/Aegis.Api
+dotnet test tests/EndToEnd/Aegis.Tests.EndToEnd.csproj
+```
+
+Optional: point at another DB with `AEGIS_TEST_CONNECTION` (tests auto-create `aegis_test` when using the default).
+
+Scenarios cover structuring positive/negative/boundary, ingest idempotency, cross-tenant isolation, and validation.
 
 ## Repository layout
 
