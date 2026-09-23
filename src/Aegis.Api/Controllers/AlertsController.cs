@@ -4,6 +4,8 @@ using Aegis.Modules.Alerts.Application;
 using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Audit.Domain;
+using Aegis.Modules.Cases.Application;
+using Aegis.Modules.Cases.Domain;
 using Aegis.Shared.Domain;
 using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
@@ -16,17 +18,20 @@ using Microsoft.AspNetCore.Mvc;
 public sealed class AlertsController : ControllerBase
 {
     private readonly IAlertRepository _alerts;
+    private readonly ICaseRepository _cases;
     private readonly ITenantContext _tenant;
     private readonly IAuditWriter _audit;
     private readonly IUnitOfWork _uow;
 
     public AlertsController(
         IAlertRepository alerts,
+        ICaseRepository cases,
         ITenantContext tenant,
         IAuditWriter audit,
         IUnitOfWork uow)
     {
         _alerts = alerts;
+        _cases = cases;
         _tenant = tenant;
         _audit = audit;
         _uow = uow;
@@ -181,6 +186,46 @@ public sealed class AlertsController : ControllerBase
             HttpContext.TraceIdentifier), ct);
         await _uow.SaveChangesAsync(ct);
         return Ok(ToResponse(alert));
+    }
+
+    [HttpPost("{id:guid}/create-case")]
+    public async Task<IActionResult> CreateCase(Guid id, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated) return Unauthorized();
+        var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
+        if (alert is null) return NotFound();
+
+        Guid? customerId = Guid.TryParse(alert.FocusEntityId, out var parsed) ? parsed : null;
+        var priority = alert.Severity switch
+        {
+            AlertSeverity.CRITICAL => CasePriority.CRITICAL,
+            AlertSeverity.HIGH => CasePriority.HIGH,
+            AlertSeverity.MEDIUM => CasePriority.MEDIUM,
+            _ => CasePriority.LOW
+        };
+        var title = $"Case for {alert.Evidence.RuleName} ({alert.Id.ToString()[..8]})";
+        var complianceCase = ComplianceCase.CreateFromAlert(
+            _tenant.TenantId,
+            alert.Id,
+            title,
+            priority,
+            customerId);
+
+        await _cases.AddAsync(complianceCase, ct);
+        await _audit.AppendAsync(AuditEvent.Create(
+            _tenant.TenantId.Value,
+            AuditEventTypes.CASE_CREATED,
+            nameof(ComplianceCase),
+            complianceCase.Id.ToString(),
+            _tenant.UserId.ToString(),
+            _tenant.Roles.FirstOrDefault(),
+            null,
+            $"{{\"alertId\":\"{alert.Id}\"}}",
+            "Case created from alert",
+            HttpContext.TraceIdentifier), ct);
+        await _uow.SaveChangesAsync(ct);
+
+        return Created($"/api/v1/cases/{complianceCase.Id}", CasesController.ToResponse(complianceCase));
     }
 
     private static AlertResponse ToResponse(Alert alert) => new(

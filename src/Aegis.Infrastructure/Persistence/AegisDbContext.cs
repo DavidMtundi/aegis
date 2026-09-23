@@ -3,6 +3,7 @@ namespace Aegis.Infrastructure.Persistence;
 using Aegis.Modules.Aml.Domain;
 using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Audit.Domain;
+using Aegis.Modules.Cases.Domain;
 using Aegis.Modules.Customers.Domain;
 using Aegis.Modules.Identity.Domain;
 using Aegis.Modules.Transactions.Domain;
@@ -25,6 +26,7 @@ public sealed class AegisDbContext : DbContext
     public DbSet<AmlRule> AmlRules => Set<AmlRule>();
     public DbSet<AmlRuleVersion> AmlRuleVersions => Set<AmlRuleVersion>();
     public DbSet<Alert> Alerts => Set<Alert>();
+    public DbSet<ComplianceCase> Cases => Set<ComplianceCase>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

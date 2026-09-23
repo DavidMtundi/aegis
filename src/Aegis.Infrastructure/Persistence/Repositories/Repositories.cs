@@ -322,3 +322,33 @@ public sealed class AlertRepository : IAlertRepository
     public async Task AddAsync(Alert alert, CancellationToken cancellationToken = default)
         => await _db.Alerts.AddAsync(alert, cancellationToken);
 }
+
+public sealed class CaseRepository : Aegis.Modules.Cases.Application.ICaseRepository
+{
+    private readonly AegisDbContext _db;
+    public CaseRepository(AegisDbContext db) => _db = db;
+
+    public Task<Aegis.Modules.Cases.Domain.ComplianceCase?> GetByTenantAndIdAsync(
+        TenantId tenantId, Guid id, CancellationToken cancellationToken = default)
+        => _db.Cases.FirstOrDefaultAsync(c => c.TenantId == tenantId && c.Id == id, cancellationToken);
+
+    public async Task<Aegis.Modules.Cases.Application.CaseListResult> ListByTenantAsync(
+        TenantId tenantId,
+        Aegis.Modules.Cases.Application.CaseListQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 100);
+        var filtered = _db.Cases.AsNoTracking().Where(c => c.TenantId == tenantId);
+        var total = await filtered.CountAsync(cancellationToken);
+        var items = await filtered
+            .OrderByDescending(c => c.OpenedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+        return new Aegis.Modules.Cases.Application.CaseListResult(items, total, page, pageSize);
+    }
+
+    public async Task AddAsync(Aegis.Modules.Cases.Domain.ComplianceCase complianceCase, CancellationToken cancellationToken = default)
+        => await _db.Cases.AddAsync(complianceCase, cancellationToken);
+}
