@@ -112,7 +112,9 @@ public sealed class OperatorApisTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, rules.StatusCode);
         var ruleList = await rules.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(ruleList.GetArrayLength() >= 1);
-        var ruleId = ruleList[0].GetProperty("ruleId").GetGuid();
+        var structuring = ruleList.EnumerateArray()
+            .First(r => r.GetProperty("code").GetString() == "STRUCTURING_001");
+        var ruleId = structuring.GetProperty("ruleId").GetGuid();
         var ruleDetail = await _client.GetAsync($"/api/v1/rules/{ruleId}");
         Assert.Equal(HttpStatusCode.OK, ruleDetail.StatusCode);
         var ruleBody = await ruleDetail.Content.ReadFromJsonAsync<JsonElement>();

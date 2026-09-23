@@ -164,15 +164,11 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
 
         var featureContext = new DictionaryFeatureContext(calculated.Features.ToDictionary(k => k.Key, v => v.Value));
         var activeVersions = await _ruleVersions.GetActiveByTenantAsync(command.TenantId, cancellationToken);
-        var structuring = activeVersions
-            .Where(v => string.Equals(v.RuleCode, StructuringRuleSeederCode.Code, StringComparison.OrdinalIgnoreCase)
-                        || v.Definition.Code == StructuringRuleSeederCode.Code)
-            .ToList();
 
         var evaluations = new List<EvaluationSummary>();
         var alertIds = new List<Guid>();
 
-        foreach (var version in structuring)
+        foreach (var version in activeVersions)
         {
             var result = await _engine.EvaluateAsync(
                 version,
@@ -223,7 +219,7 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
                     command.ActorRole,
                     null,
                     $"{{\"ruleCode\":\"{result.RuleCode}\",\"ruleVersionId\":\"{result.RuleVersionId}\"}}",
-                    "Alert created from structuring evaluation",
+                    "Alert created from rule evaluation",
                     command.CorrelationId), cancellationToken);
             }
         }

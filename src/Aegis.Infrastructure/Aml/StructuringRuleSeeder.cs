@@ -7,6 +7,7 @@ using Aegis.Shared.Domain;
 public sealed class StructuringRuleSeeder : IStructuringRuleSeeder
 {
     public const string RuleCode = "STRUCTURING_001";
+    public const string RapidMovementCode = "RAPID_MOVEMENT_001";
 
     private readonly IAmlRuleRepository _rules;
     private readonly IAmlRuleVersionRepository _versions;
@@ -21,11 +22,14 @@ public sealed class StructuringRuleSeeder : IStructuringRuleSeeder
 
     public async Task EnsureSeededAsync(TenantId tenantId, CancellationToken cancellationToken = default)
     {
+        await EnsureStructuringAsync(tenantId, cancellationToken);
+        await EnsureRapidMovementAsync(tenantId, cancellationToken);
+    }
+
+    private async Task EnsureStructuringAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
         var existing = await _rules.GetByTenantAndCodeAsync(tenantId, RuleCode, cancellationToken);
-        if (existing is not null)
-        {
-            return;
-        }
+        if (existing is not null) return;
 
         var definition = new RuleDefinition
         {
@@ -48,25 +52,55 @@ public sealed class StructuringRuleSeeder : IStructuringRuleSeeder
         };
 
         var rule = AmlRule.CreateDraft(
-            tenantId,
-            RuleCode,
-            "Structuring",
+            tenantId, RuleCode, "Structuring",
             "Detects structuring via configurable thresholds.",
-            ScenarioType.STRUCTURING,
-            "system-seed");
+            ScenarioType.STRUCTURING, "system-seed");
         rule.Approve();
         rule.Activate();
 
         var version = AmlRuleVersion.CreateActive(
-            rule.Id,
-            tenantId,
-            versionNumber: 1,
-            definition,
-            createdBy: "system-seed",
-            effectiveFrom: DateTimeOffset.UtcNow);
+            rule.Id, tenantId, 1, definition, "system-seed", DateTimeOffset.UtcNow);
 
         await _rules.AddAsync(rule, cancellationToken);
         await _versions.AddAsync(version, cancellationToken);
-        // Caller owns IUnitOfWork.SaveChangesAsync so seed can share the ingest transaction.
+    }
+
+    private async Task EnsureRapidMovementAsync(TenantId tenantId, CancellationToken cancellationToken)
+    {
+        var existing = await _rules.GetByTenantAndCodeAsync(tenantId, RapidMovementCode, cancellationToken);
+        if (existing is not null) return;
+
+        var definition = new RuleDefinition
+        {
+            Code = RapidMovementCode,
+            Name = "Rapid movement / pass-through",
+            Focus = FocusType.CUSTOMER,
+            Schedule = new RuleSchedule { Frequency = "realtime", Lookback = "1h" },
+            Conditions = new RuleConditionGroup
+            {
+                All = new List<RuleCondition>
+                {
+                    new() { Field = "credit_sum_1h", Operator = ">=", Value = 50_000m },
+                    new() { Field = "debit_sum_1h", Operator = ">=", Value = 45_000m },
+                    new() { Field = "pass_through_ratio_1h", Operator = ">=", Value = 0.9m }
+                }
+            },
+            Severity = AlertSeverity.HIGH,
+            RiskScore = 75,
+            Actions = new List<string> { "CREATE_ALERT" }
+        };
+
+        var rule = AmlRule.CreateDraft(
+            tenantId, RapidMovementCode, "Rapid movement / pass-through",
+            "Detects funds entering and leaving within one hour.",
+            ScenarioType.RAPID_MOVEMENT, "system-seed");
+        rule.Approve();
+        rule.Activate();
+
+        var version = AmlRuleVersion.CreateActive(
+            rule.Id, tenantId, 1, definition, "system-seed", DateTimeOffset.UtcNow);
+
+        await _rules.AddAsync(rule, cancellationToken);
+        await _versions.AddAsync(version, cancellationToken);
     }
 }

@@ -33,27 +33,41 @@ public sealed class FeatureCalculator : IFeatureCalculator
             throw new ArgumentException("focusEntityId must be a customer GUID.", nameof(focusEntityId));
         }
 
-        var windowStart = asOfTimestamp - window;
+        var customerId = new CustomerId(customerGuid);
+        // Load the wider of requested window and 24h so we can compute both structuring and rapid features.
+        var loadWindow = window > TimeSpan.FromHours(24) ? window : TimeSpan.FromHours(24);
+        var loadStart = asOfTimestamp - loadWindow;
         var txs = await _transactions.GetForCustomerWindowAsync(
             tenantId,
-            new CustomerId(customerGuid),
-            windowStart,
-            asOfTimestamp.AddTicks(1), // inclusive as-of
+            customerId,
+            loadStart,
+            asOfTimestamp.AddTicks(1),
             cancellationToken);
 
-        // Window is [asOf-24h, asOf] inclusive on business timestamps
-        txs = txs.Where(t => t.Timestamp >= windowStart && t.Timestamp <= asOfTimestamp).ToList();
+        txs = txs.Where(t => t.Timestamp >= loadStart && t.Timestamp <= asOfTimestamp).ToList();
 
-        var count = txs.Count;
-        var sum = txs.Sum(t => t.Amount.Amount);
-        var max = txs.Count == 0 ? 0m : txs.Max(t => t.Amount.Amount);
-        var ids = txs.Select(t => t.Id.ToString()).ToList();
+        var window24Start = asOfTimestamp - TimeSpan.FromHours(24);
+        var txs24 = txs.Where(t => t.Timestamp >= window24Start).ToList();
+        var count = txs24.Count;
+        var sum = txs24.Sum(t => t.Amount.Amount);
+        var max = txs24.Count == 0 ? 0m : txs24.Max(t => t.Amount.Amount);
+
+        var window1Start = asOfTimestamp - TimeSpan.FromHours(1);
+        var txs1h = txs.Where(t => t.Timestamp >= window1Start).ToList();
+        var creditSum1h = txs1h.Where(t => t.Direction == TransactionDirection.CREDIT).Sum(t => t.Amount.Amount);
+        var debitSum1h = txs1h.Where(t => t.Direction == TransactionDirection.DEBIT).Sum(t => t.Amount.Amount);
+        var passThrough = creditSum1h <= 0 ? 0m : Math.Min(1m, debitSum1h / creditSum1h);
+
+        var ids = txs24.Select(t => t.Id.ToString()).ToList();
 
         var features = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
             ["transaction_count_24h"] = count,
             ["transaction_sum_24h"] = sum,
-            ["max_single_amount_24h"] = max
+            ["max_single_amount_24h"] = max,
+            ["credit_sum_1h"] = creditSum1h,
+            ["debit_sum_1h"] = debitSum1h,
+            ["pass_through_ratio_1h"] = passThrough
         };
 
         return new FeatureCalculationResult(features, ids);
