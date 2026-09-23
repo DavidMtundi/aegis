@@ -7,3 +7,6 @@ obj/
 appsettings.Development.json
 .env
 secrets/
+
+.worktrees/
+.superpowers/
