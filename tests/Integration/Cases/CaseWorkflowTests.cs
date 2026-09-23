@@ -130,4 +130,59 @@ public sealed class CaseWorkflowTests : IAsyncLifetime
         Assert.Contains("CASE_UPDATED", types);
         Assert.Contains("CASE_CLOSED", types);
     }
+
+    [Fact]
+    public async Task Cross_tenant_case_lookup_returns_not_found()
+    {
+        var baseTs = DateTimeOffset.UtcNow.AddHours(-1);
+        Guid? alertId = null;
+        for (var i = 0; i < 5; i++)
+        {
+            var ingest = await _client.PostAsJsonAsync("/api/v1/transactions", new
+            {
+                externalReference = $"TX-XB-{i}-{Guid.NewGuid():N}"[..28],
+                accountId = _accountId,
+                customerId = _customerId,
+                amount = 95_000m,
+                currency = "KES",
+                direction = "CREDIT",
+                transactionType = "TRANSFER",
+                channel = "MOBILE",
+                timestamp = baseTs.AddMinutes(i)
+            });
+            ingest.EnsureSuccessStatusCode();
+            var alertIds = (await ingest.Content.ReadFromJsonAsync<JsonElement>())
+                .GetProperty("alertIds").EnumerateArray().Select(x => x.GetGuid()).ToList();
+            if (alertIds.Count > 0) alertId = alertIds[0];
+        }
+
+        Assert.NotNull(alertId);
+        var create = await _client.PostAsync($"/api/v1/alerts/{alertId}/create-case", null);
+        create.EnsureSuccessStatusCode();
+        var caseId = (await create.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var otherSlug = $"xb-{Guid.NewGuid():N}"[..16];
+        using var other = _factory.CreateClient();
+        (await other.PostAsJsonAsync("/api/v1/tenants", new
+        {
+            name = "Other",
+            slug = otherSlug,
+            adminEmail = $"admin@{otherSlug}.test",
+            adminName = "Admin",
+            adminPassword = "Passw0rd!"
+        })).EnsureSuccessStatusCode();
+        var login = await other.PostAsJsonAsync("/api/v1/auth/login", new
+        {
+            email = $"admin@{otherSlug}.test",
+            password = "Passw0rd!",
+            tenantSlug = otherSlug
+        });
+        login.EnsureSuccessStatusCode();
+        other.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            (await login.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("accessToken").GetString());
+
+        Assert.Equal(HttpStatusCode.NotFound, (await other.GetAsync($"/api/v1/cases/{caseId}")).StatusCode);
+    }
 }
+

@@ -15,6 +15,7 @@ This is the core Aegis platform — a modular monolith that will eventually deco
 dotnet restore
 docker-compose up -d   # starts PostgreSQL + Redis
 dotnet ef database update --project src/Aegis.Infrastructure --startup-project src/Aegis.Api
+# Jwt signing key is not committed; launchSettings sets Jwt__SigningKey for local Development.
 dotnet run --project src/Aegis.Api
 ```
 

@@ -20,6 +20,8 @@ try
         .Enrich.FromLogContext()
         .WriteTo.Console());
 
+    EnsureJwtSigningKeyConfigured(builder);
+
     builder.Services.AddControllers()
         .AddJsonOptions(o =>
         {
@@ -88,6 +90,34 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+static void EnsureJwtSigningKeyConfigured(WebApplicationBuilder builder)
+{
+    const string developmentDefault = "dev-only-signing-key-change-me-32chars-min!!";
+
+    if (builder.Environment.IsDevelopment()
+        && string.IsNullOrWhiteSpace(builder.Configuration["Jwt:SigningKey"]))
+    {
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Jwt:SigningKey"] = developmentDefault
+        });
+    }
+
+    var signingKey = builder.Configuration["Jwt:SigningKey"];
+    if (string.IsNullOrWhiteSpace(signingKey))
+    {
+        throw new InvalidOperationException(
+            "Jwt:SigningKey must be configured (set Jwt__SigningKey).");
+    }
+
+    if (!builder.Environment.IsDevelopment()
+        && string.Equals(signingKey, developmentDefault, StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Jwt:SigningKey must not use the development default outside Development.");
+    }
 }
 
 public partial class Program;
