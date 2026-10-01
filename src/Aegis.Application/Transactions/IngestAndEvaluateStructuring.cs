@@ -221,7 +221,7 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
                     command.ActorId.ToString(),
                     command.ActorRole,
                     null,
-                    $"{{\"ruleCode\":\"{result.RuleCode}\",\"ruleVersionId\":\"{result.RuleVersionId}\"}}",
+                    AuditPayload.Json(new { ruleCode = result.RuleCode, ruleVersionId = result.RuleVersionId }),
                     "Alert created from rule evaluation",
                     command.CorrelationId), cancellationToken);
             }

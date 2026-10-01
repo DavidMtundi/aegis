@@ -109,7 +109,7 @@ public sealed class DevTenantsController : ControllerBase
             "system",
             "bootstrap",
             null,
-            $"{{\"slug\":\"{tenant.Slug}\"}}",
+            AuditPayload.Json(new { slug = tenant.Slug }),
             "Dev bootstrap created tenant",
             HttpContext.TraceIdentifier), ct);
 
@@ -121,7 +121,7 @@ public sealed class DevTenantsController : ControllerBase
             "system",
             "bootstrap",
             null,
-            $"{{\"email\":\"{admin.Email}\"}}",
+            AuditPayload.Json(new { email = admin.Email }),
             "Dev bootstrap created admin user",
             HttpContext.TraceIdentifier), ct);
 

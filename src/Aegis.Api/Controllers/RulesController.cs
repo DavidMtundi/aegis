@@ -118,7 +118,7 @@ public sealed class RulesController : ControllerBase
             _tenant.UserId.ToString(),
             _tenant.Roles.FirstOrDefault(),
             null,
-            $"{{\"ruleId\":\"{ruleId}\",\"version\":{next}}}",
+            AuditPayload.Json(new { ruleId, version = next }),
             "Draft rule version created",
             HttpContext.TraceIdentifier), ct);
         await _uow.SaveChangesAsync(ct);
@@ -155,7 +155,7 @@ public sealed class RulesController : ControllerBase
             _tenant.UserId.ToString(),
             _tenant.Roles.FirstOrDefault(),
             null,
-            $"{{\"ruleId\":\"{version.RuleId}\",\"version\":{version.VersionNumber}}}",
+            AuditPayload.Json(new { ruleId = version.RuleId, version = version.VersionNumber }),
             "Rule version activated",
             HttpContext.TraceIdentifier), ct);
         await _uow.SaveChangesAsync(ct);

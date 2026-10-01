@@ -135,7 +135,7 @@ public sealed class AlertsController : ControllerBase
             _tenant.UserId.ToString(),
             _tenant.Roles.FirstOrDefault(),
             null,
-            $"{{\"assignedTo\":\"{assignee}\"}}",
+            AuditPayload.Json(new { assignedTo = assignee }),
             "Alert assigned",
             HttpContext.TraceIdentifier), ct);
         await _uow.SaveChangesAsync(ct);
@@ -220,7 +220,7 @@ public sealed class AlertsController : ControllerBase
             _tenant.UserId.ToString(),
             _tenant.Roles.FirstOrDefault(),
             null,
-            $"{{\"alertId\":\"{alert.Id}\"}}",
+            AuditPayload.Json(new { alertId = alert.Id }),
             "Case created from alert",
             HttpContext.TraceIdentifier), ct);
         await _uow.SaveChangesAsync(ct);

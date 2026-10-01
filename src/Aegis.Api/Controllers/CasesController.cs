@@ -109,7 +109,7 @@ public sealed class CasesController : ControllerBase
             _tenant.UserId.ToString(),
             _tenant.Roles.FirstOrDefault(),
             null,
-            $"{{\"assignedTo\":\"{assignee}\"}}",
+            AuditPayload.Json(new { assignedTo = assignee }),
             "Case assigned",
             HttpContext.TraceIdentifier), ct);
         await _uow.SaveChangesAsync(ct);
@@ -180,7 +180,7 @@ public sealed class CasesController : ControllerBase
             _tenant.UserId.ToString(),
             _tenant.Roles.FirstOrDefault(),
             null,
-            $"{{\"disposition\":\"{disposition}\"}}",
+            AuditPayload.Json(new { disposition = disposition.ToString() }),
             request.Conclusion.Trim(),
             HttpContext.TraceIdentifier), ct);
         await _uow.SaveChangesAsync(ct);
