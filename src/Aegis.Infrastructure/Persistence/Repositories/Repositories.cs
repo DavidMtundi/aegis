@@ -30,6 +30,12 @@ public sealed class TenantRepository : ITenantRepository
     {
         await _db.Tenants.AddAsync(tenant, cancellationToken);
     }
+
+    public Task UpdateAsync(Tenant tenant, CancellationToken cancellationToken = default)
+    {
+        _db.Tenants.Update(tenant);
+        return Task.CompletedTask;
+    }
 }
 
 public sealed class UserRepository : IUserRepository

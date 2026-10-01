@@ -45,7 +45,7 @@ public sealed class AuthController : ControllerBase
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
         var tenant = await _tenants.GetBySlugAsync(request.TenantSlug, ct);
-        if (tenant is null)
+        if (tenant is null || tenant.Status != TenantStatus.ACTIVE)
         {
             return Unauthorized();
         }

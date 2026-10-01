@@ -37,4 +37,10 @@ public sealed class Tenant : AggregateRoot
         Status = TenantStatus.ACTIVE;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
+
+    public void Suspend()
+    {
+        Status = TenantStatus.SUSPENDED;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
 }
