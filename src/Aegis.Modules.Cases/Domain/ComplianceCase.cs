@@ -65,6 +65,28 @@ public sealed class ComplianceCase : AggregateRoot
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
+    /// <returns>False when the alert was already linked.</returns>
+    public bool LinkAlert(Guid alertId)
+    {
+        if (Status == CaseStatus.CLOSED)
+            throw new InvalidOperationException("Cannot link alerts to a closed case.");
+        if (LinkedAlertIds.Contains(alertId))
+            return false;
+        LinkedAlertIds.Add(alertId);
+        UpdatedAt = DateTimeOffset.UtcNow;
+        return true;
+    }
+
+    public void Escalate()
+    {
+        if (Status == CaseStatus.CLOSED)
+            throw new InvalidOperationException("Cannot escalate a closed case.");
+        if (Status == CaseStatus.ESCALATED)
+            throw new InvalidOperationException("Case is already escalated.");
+        Status = CaseStatus.ESCALATED;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     public void Close(CaseDisposition disposition, string conclusion)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(conclusion);

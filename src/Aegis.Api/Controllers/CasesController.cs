@@ -1,11 +1,13 @@
 namespace Aegis.Api.Controllers;
 
 using Aegis.Api.Authorization;
+using Aegis.Application.Cases;
 using Aegis.Modules.Alerts.Application;
 using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Audit.Domain;
 using Aegis.Modules.Cases.Application;
 using Aegis.Modules.Cases.Domain;
+using Aegis.Modules.Identity.Application;
 using Aegis.Shared.Domain;
 using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
@@ -17,18 +19,29 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/v1/cases")]
 public sealed class CasesController : ControllerBase
 {
+    private const int MaxReasonLength = 2000;
+
     private readonly ICaseRepository _cases;
+    private readonly IAlertRepository _alerts;
+    private readonly IUserRepository _users;
+    private readonly IAuditEventRepository _auditEvents;
     private readonly ITenantContext _tenant;
     private readonly IAuditWriter _audit;
     private readonly IUnitOfWork _uow;
 
     public CasesController(
         ICaseRepository cases,
+        IAlertRepository alerts,
+        IUserRepository users,
+        IAuditEventRepository auditEvents,
         ITenantContext tenant,
         IAuditWriter audit,
         IUnitOfWork uow)
     {
         _cases = cases;
+        _alerts = alerts;
+        _users = users;
+        _auditEvents = auditEvents;
         _tenant = tenant;
         _audit = audit;
         _uow = uow;
@@ -59,6 +72,8 @@ public sealed class CasesController : ControllerBase
     public sealed record AssignCaseRequest(string? AssignedTo);
     public sealed record AddNoteRequest(string Text);
     public sealed record CloseCaseRequest(string Disposition, string Conclusion);
+    public sealed record LinkAlertRequest(Guid AlertId);
+    public sealed record EscalateCaseRequest(string? Reason);
 
     [HttpGet]
     [RequirePermission(Permissions.CaseRead)]
@@ -92,33 +107,84 @@ public sealed class CasesController : ControllerBase
         if (!_tenant.IsAuthenticated) return Unauthorized();
         var c = await _cases.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (c is null) return NotFound();
+        if (c.Status == CaseStatus.CLOSED) return Conflict("Cannot assign a closed case.");
 
-        var assignee = string.IsNullOrWhiteSpace(request?.AssignedTo)
-            ? _tenant.UserId.ToString()
-            : request.AssignedTo.Trim();
-        try
-        {
-            c.Assign(assignee);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        var assignee = await _users.FindActiveAssigneeAsync(_tenant.TenantId, request?.AssignedTo, _tenant.UserId, ct);
+        if (assignee is null)
+            return BadRequest("AssignedTo must be the id of an active user in this tenant.");
 
-        await _audit.AppendAsync(AuditEvent.Create(
+        c.Assign(assignee.Id.ToString());
+        await AppendAuditAsync(c, AuditEventTypes.CASE_ASSIGNED,
+            AuditPayload.Json(new { assignedTo = c.AssignedTo, assigneeEmail = assignee.Email }), "Case assigned", ct);
+        await _uow.SaveChangesAsync(ct);
+        return Ok(ToResponse(c));
+    }
+
+    [HttpPost("{id:guid}/alerts")]
+    [RequirePermission(Permissions.CaseUpdate)]
+    public async Task<ActionResult<CaseResponse>> LinkAlert(Guid id, [FromBody] LinkAlertRequest request, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated) return Unauthorized();
+        var c = await _cases.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
+        if (c is null) return NotFound();
+        if (c.Status == CaseStatus.CLOSED) return Conflict("Cannot link alerts to a closed case.");
+
+        var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, request.AlertId, ct);
+        if (alert is null) return NotFound("Alert not found.");
+
+        if (c.LinkAlert(alert.Id))
+        {
+            await AppendAuditAsync(c, AuditEventTypes.CASE_ALERT_LINKED,
+                AuditPayload.Json(new { alertId = alert.Id }), "Alert linked to case", ct);
+            await _uow.SaveChangesAsync(ct);
+        }
+        return Ok(ToResponse(c));
+    }
+
+    [HttpPost("{id:guid}/escalate")]
+    [RequirePermission(Permissions.CaseUpdate)]
+    public async Task<ActionResult<CaseResponse>> Escalate(Guid id, [FromBody] EscalateCaseRequest? request, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated) return Unauthorized();
+        if (request?.Reason is { Length: > MaxReasonLength })
+            return BadRequest($"Reason must be at most {MaxReasonLength} characters.");
+
+        var c = await _cases.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
+        if (c is null) return NotFound();
+        if (c.Status is CaseStatus.CLOSED or CaseStatus.ESCALATED)
+            return Conflict($"Case is {c.Status} and cannot be escalated.");
+
+        c.Escalate();
+        await AppendAuditAsync(c, AuditEventTypes.CASE_ESCALATED,
+            AuditPayload.Json(new { reason = request?.Reason?.Trim() }), "Case escalated", ct);
+        await _uow.SaveChangesAsync(ct);
+        return Ok(ToResponse(c));
+    }
+
+    [HttpGet("{id:guid}/timeline")]
+    [RequirePermission(Permissions.CaseRead)]
+    public async Task<ActionResult<IReadOnlyList<CaseTimelineEntry>>> Timeline(Guid id, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated) return Unauthorized();
+        var c = await _cases.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
+        if (c is null) return NotFound();
+
+        var events = await _auditEvents.ListByEntityIdsAsync(_tenant.TenantId.Value, CaseTimeline.EntityIds(c), ct);
+        return Ok(CaseTimeline.Build(c, events));
+    }
+
+    private Task AppendAuditAsync(ComplianceCase c, string eventType, string? after, string reason, CancellationToken ct)
+        => _audit.AppendAsync(AuditEvent.Create(
             _tenant.TenantId.Value,
-            AuditEventTypes.CASE_ASSIGNED,
+            eventType,
             nameof(ComplianceCase),
             c.Id.ToString(),
             _tenant.UserId.ToString(),
             _tenant.Roles.FirstOrDefault(),
             null,
-            AuditPayload.Json(new { assignedTo = assignee }),
-            "Case assigned",
+            after,
+            reason,
             HttpContext.TraceIdentifier), ct);
-        await _uow.SaveChangesAsync(ct);
-        return Ok(ToResponse(c));
-    }
 
     [HttpPost("{id:guid}/notes")]
     [RequirePermission(Permissions.CaseUpdate)]
@@ -131,26 +197,11 @@ public sealed class CasesController : ControllerBase
         var c = await _cases.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (c is null) return NotFound();
 
-        try
-        {
-            c.AddNote(request.Text, _tenant.UserId.ToString());
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        if (c.Status == CaseStatus.CLOSED) return Conflict("Cannot add notes to a closed case.");
 
-        await _audit.AppendAsync(AuditEvent.Create(
-            _tenant.TenantId.Value,
-            AuditEventTypes.CASE_UPDATED,
-            nameof(ComplianceCase),
-            c.Id.ToString(),
-            _tenant.UserId.ToString(),
-            _tenant.Roles.FirstOrDefault(),
-            null,
-            null,
-            "Case note added",
-            HttpContext.TraceIdentifier), ct);
+        c.AddNote(request.Text, _tenant.UserId.ToString());
+        await AppendAuditAsync(c, AuditEventTypes.CASE_NOTE_ADDED,
+            AuditPayload.Json(new { noteId = c.Notes[^1].Id }), "Case note added", ct);
         await _uow.SaveChangesAsync(ct);
         return Ok(ToResponse(c));
     }
@@ -167,15 +218,9 @@ public sealed class CasesController : ControllerBase
 
         var c = await _cases.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (c is null) return NotFound();
+        if (c.Status == CaseStatus.CLOSED) return Conflict("Case is already closed.");
 
-        try
-        {
-            c.Close(disposition, request.Conclusion);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        c.Close(disposition, request.Conclusion);
 
         await _audit.AppendAsync(AuditEvent.Create(
             _tenant.TenantId.Value,

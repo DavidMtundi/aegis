@@ -127,7 +127,7 @@ public sealed class CaseWorkflowTests : IAsyncLifetime
             .Select(e => e.GetProperty("eventType").GetString())
             .ToList();
         Assert.Contains("CASE_CREATED", types);
-        Assert.Contains("CASE_UPDATED", types);
+        Assert.Contains("CASE_NOTE_ADDED", types);
         Assert.Contains("CASE_CLOSED", types);
     }
 

@@ -22,3 +22,17 @@ public interface IUserRepository
     Task AddAsync(User user, CancellationToken cancellationToken = default);
     Task UpdateAsync(User user, CancellationToken cancellationToken = default);
 }
+
+public static class UserRepositoryExtensions
+{
+    /// <summary>Resolves an assignee id (or the caller when blank) to an active user in the tenant.</summary>
+    public static async Task<User?> FindActiveAssigneeAsync(
+        this IUserRepository users, TenantId tenantId, string? assignedTo, Guid callerId, CancellationToken cancellationToken = default)
+    {
+        var id = callerId;
+        if (!string.IsNullOrWhiteSpace(assignedTo) && !Guid.TryParse(assignedTo.Trim(), out id))
+            return null;
+        var user = await users.GetByTenantAndIdAsync(tenantId, id, cancellationToken);
+        return user is { Status: UserStatus.ACTIVE } ? user : null;
+    }
+}

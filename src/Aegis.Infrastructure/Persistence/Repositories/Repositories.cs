@@ -96,6 +96,12 @@ public sealed class AuditEventRepository : IAuditEventRepository
             .OrderByDescending(e => e.OccurredAt)
             .Take(take)
             .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<AuditEvent>> ListByEntityIdsAsync(Guid tenantId, IReadOnlyCollection<string> entityIds, CancellationToken cancellationToken = default)
+        => await _db.AuditEvents.AsNoTracking()
+            .Where(e => e.TenantId == tenantId && entityIds.Contains(e.EntityId))
+            .OrderBy(e => e.OccurredAt)
+            .ToListAsync(cancellationToken);
 }
 
 public sealed class CustomerRepository : Aegis.Modules.Customers.Application.ICustomerRepository

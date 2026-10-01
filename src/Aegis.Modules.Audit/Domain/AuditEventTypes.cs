@@ -19,6 +19,8 @@ public static class AuditEventTypes
     public const string CASE_CREATED = nameof(CASE_CREATED);
     public const string CASE_ASSIGNED = nameof(CASE_ASSIGNED);
     public const string CASE_UPDATED = nameof(CASE_UPDATED);
+    public const string CASE_NOTE_ADDED = nameof(CASE_NOTE_ADDED);
+    public const string CASE_ALERT_LINKED = nameof(CASE_ALERT_LINKED);
     public const string CASE_ESCALATED = nameof(CASE_ESCALATED);
     public const string CASE_DECIDED = nameof(CASE_DECIDED);
     public const string CASE_CLOSED = nameof(CASE_CLOSED);

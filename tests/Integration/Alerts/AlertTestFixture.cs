@@ -5,6 +5,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Aegis.Infrastructure.Auth;
+using Aegis.Modules.Alerts.Application;
+using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Identity.Application;
 using Aegis.Modules.Identity.Domain;
 using Aegis.Shared.Domain;
@@ -110,6 +112,20 @@ public sealed class AlertTestFixture
             alertIds = await IngestStructuringCreditAsync(baseTs.AddMinutes(i));
         }
         return alertIds.Single();
+    }
+
+    /// <summary>Inserts an OPEN alert on the fixture customer without going through rule evaluation.</summary>
+    public async Task<Guid> SeedAlertAsync()
+    {
+        await using var scope = Factory.Services.CreateAsyncScope();
+        var alerts = scope.ServiceProvider.GetRequiredService<IAlertRepository>();
+        var uow = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        var alert = Alert.Create(
+            new TenantId(TenantId), Guid.NewGuid(), Guid.NewGuid(), FocusType.CUSTOMER, CustomerId.ToString(),
+            AlertSeverity.MEDIUM, 50, new AlertEvidence { RuleName = "Seeded" }, $"seed-{Guid.NewGuid():N}");
+        await alerts.AddAsync(alert);
+        await uow.SaveChangesAsync();
+        return alert.Id;
     }
 
     public async Task<HttpClient> CreateUserClientAsync(string email, string[] roles)

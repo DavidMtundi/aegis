@@ -22,5 +22,6 @@ public sealed class AuditEventConfiguration : IEntityTypeConfiguration<AuditEven
         builder.Property(x => x.CorrelationId).HasMaxLength(100);
         builder.HasIndex(x => new { x.TenantId, x.OccurredAt });
         builder.HasIndex(x => new { x.TenantId, x.Id });
+        builder.HasIndex(x => new { x.TenantId, x.EntityId });
     }
 }

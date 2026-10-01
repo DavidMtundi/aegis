@@ -8,7 +8,6 @@ using Aegis.Modules.Audit.Domain;
 using Aegis.Modules.Cases.Application;
 using Aegis.Modules.Cases.Domain;
 using Aegis.Modules.Identity.Application;
-using Aegis.Modules.Identity.Domain;
 using Aegis.Shared.Domain;
 using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
@@ -134,13 +133,9 @@ public sealed class AlertsController : ControllerBase
         if (alert is null) return NotFound();
         if (alert.IsClosed) return Conflict($"Alert is {alert.Status} and cannot be changed.");
 
-        var assigneeId = _tenant.UserId;
-        if (!string.IsNullOrWhiteSpace(request?.AssignedTo) && !Guid.TryParse(request.AssignedTo.Trim(), out assigneeId))
-            return BadRequest("AssignedTo must be a user id.");
-
-        var assignee = await _users.GetByTenantAndIdAsync(_tenant.TenantId, assigneeId, ct);
-        if (assignee is null || assignee.Status != UserStatus.ACTIVE)
-            return BadRequest("AssignedTo must be an active user in this tenant.");
+        var assignee = await _users.FindActiveAssigneeAsync(_tenant.TenantId, request?.AssignedTo, _tenant.UserId, ct);
+        if (assignee is null)
+            return BadRequest("AssignedTo must be the id of an active user in this tenant.");
 
         alert.Assign(assignee.Id.ToString());
         await AppendAuditAsync(alert, AuditEventTypes.ALERT_ASSIGNED,
