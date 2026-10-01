@@ -62,8 +62,9 @@ try
 
     var app = builder.Build();
 
-    using (var scope = app.Services.CreateScope())
+    if (app.Configuration.GetValue("Database:MigrateOnStartup", app.Environment.IsDevelopment()))
     {
+        using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AegisDbContext>();
         db.Database.Migrate();
     }

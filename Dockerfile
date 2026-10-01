@@ -3,6 +3,9 @@ WORKDIR /src
 
 # Copy project files for dependency caching
 COPY src/Aegis.Shared/Aegis.Shared.csproj src/Aegis.Shared/
+COPY src/Aegis.Application/Aegis.Application.csproj src/Aegis.Application/
+COPY src/Aegis.Modules.Identity/Aegis.Modules.Identity.csproj src/Aegis.Modules.Identity/
+COPY src/Aegis.Modules.Customers/Aegis.Modules.Customers.csproj src/Aegis.Modules.Customers/
 COPY src/Aegis.Modules.Aml/Aegis.Modules.Aml.csproj src/Aegis.Modules.Aml/
 COPY src/Aegis.Modules.Kyc/Aegis.Modules.Kyc.csproj src/Aegis.Modules.Kyc/
 COPY src/Aegis.Modules.Kyb/Aegis.Modules.Kyb.csproj src/Aegis.Modules.Kyb/
