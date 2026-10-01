@@ -39,4 +39,31 @@ public sealed class User : AggregateRoot
         LastLoginAt = DateTimeOffset.UtcNow;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
+
+    public void SetRoles(IEnumerable<string> roleNames)
+    {
+        RoleNames = ValidateRoles(roleNames).ToList();
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void Deactivate()
+    {
+        Status = UserStatus.DISABLED;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Maps role names to their canonical built-in spelling; throws on unknown roles.</summary>
+    public static IReadOnlyList<string> ValidateRoles(IEnumerable<string> roleNames)
+    {
+        var result = new List<string>();
+        foreach (var raw in roleNames)
+        {
+            var name = raw.Trim();
+            var canonical = Aegis.Shared.Security.RoleNames.All
+                .FirstOrDefault(r => string.Equals(r, name, StringComparison.OrdinalIgnoreCase))
+                ?? throw new ArgumentException($"Unknown role '{name}'.", nameof(roleNames));
+            if (!result.Contains(canonical)) result.Add(canonical);
+        }
+        return result;
+    }
 }

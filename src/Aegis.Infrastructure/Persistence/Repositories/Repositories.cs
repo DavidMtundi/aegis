@@ -53,14 +53,18 @@ public sealed class UserRepository : IUserRepository
         return _db.Users.FirstOrDefaultAsync(u => u.TenantId == tenantId && u.Email == normalized, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<User>> ListByTenantAsync(TenantId tenantId, CancellationToken cancellationToken = default)
+        => await _db.Users.Where(u => u.TenantId == tenantId).OrderBy(u => u.Email).ToListAsync(cancellationToken);
+
     public async Task AddAsync(User user, CancellationToken cancellationToken = default)
     {
         await _db.Users.AddAsync(user, cancellationToken);
     }
 
-    public async Task UpdateAsync(User user, CancellationToken cancellationToken = default)
+    public Task UpdateAsync(User user, CancellationToken cancellationToken = default)
     {
         _db.Users.Update(user);
+        return Task.CompletedTask;
     }
 }
 

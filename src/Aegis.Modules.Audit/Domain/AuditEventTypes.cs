@@ -35,5 +35,7 @@ public static class AuditEventTypes
 
     public const string TENANT_CREATED = nameof(TENANT_CREATED);
     public const string USER_CREATED = nameof(USER_CREATED);
+    public const string USER_ROLES_CHANGED = nameof(USER_ROLES_CHANGED);
+    public const string USER_DEACTIVATED = nameof(USER_DEACTIVATED);
     public const string USER_LOGIN = nameof(USER_LOGIN);
 }
