@@ -8,7 +8,8 @@
       "applicationUrl": "http://localhost:5092",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "Jwt__SigningKey": "dev-only-signing-key-change-me-32chars-min!!"
+        "Jwt__SigningKey": "dev-only-signing-key-change-me-32chars-min!!",
+        "Cors__AllowedOrigins__0": "http://localhost:3000"
       }
     },
     "https": {
@@ -18,7 +19,8 @@
       "applicationUrl": "https://localhost:7254;http://localhost:5092",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "Jwt__SigningKey": "dev-only-signing-key-change-me-32chars-min!!"
+        "Jwt__SigningKey": "dev-only-signing-key-change-me-32chars-min!!",
+        "Cors__AllowedOrigins__0": "http://localhost:3000"
       }
     }
   }

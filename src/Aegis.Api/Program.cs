@@ -40,8 +40,9 @@ try
 
     builder.Services.AddAegisInfrastructure(builder.Configuration);
     builder.Services.AddAuthorization();
+    var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
     builder.Services.AddCors(o => o.AddPolicy("Default", p =>
-        p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+        p.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader()));
 
     var app = builder.Build();
 

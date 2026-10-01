@@ -11,8 +11,13 @@ using Microsoft.Extensions.Configuration;
 public sealed class AegisApiFactory : WebApplicationFactory<Program>
 {
     private readonly string _connectionString;
+    private readonly IDictionary<string, string?> _overrides;
 
-    public AegisApiFactory(string connectionString) => _connectionString = connectionString;
+    public AegisApiFactory(string connectionString, IDictionary<string, string?>? overrides = null)
+    {
+        _connectionString = connectionString;
+        _overrides = overrides ?? new Dictionary<string, string?>();
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -28,6 +33,11 @@ public sealed class AegisApiFactory : WebApplicationFactory<Program>
                 ["Aegis:AllowDevBootstrap"] = "true"
             });
         });
+        // Program.cs reads CORS and rate-limit settings before Build(); only UseSetting is visible that early.
+        foreach (var (key, value) in _overrides)
+        {
+            builder.UseSetting(key, value);
+        }
     }
 }
 

@@ -19,6 +19,8 @@ dotnet ef database update --project src/Aegis.Infrastructure --startup-project s
 dotnet run --project src/Aegis.Api
 ```
 
+Browser clients must be listed in `Cors:AllowedOrigins` (for example `Cors__AllowedOrigins__0=https://console.example.com`). Local Development allows the console at `http://localhost:3000` via `launchSettings.json`; other environments allow no origins until configured.
+
 ### Supervisor demo (local)
 
 With API running in Development:
