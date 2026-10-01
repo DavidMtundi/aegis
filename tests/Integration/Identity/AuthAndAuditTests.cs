@@ -142,15 +142,10 @@ public sealed class AuthAndAuditTests : IAsyncLifetime
             .WithWebHostBuilder(builder =>
             {
                 builder.UseEnvironment("Production");
-                builder.ConfigureAppConfiguration((_, config) =>
-                {
-                    config.AddInMemoryCollection(new Dictionary<string, string?>
-                    {
-                        ["ConnectionStrings:Aegis"] = ConnectionString,
-                        ["Jwt:SigningKey"] = "dev-only-signing-key-change-me-32chars-min!!",
-                        ["Aegis:AllowDevBootstrap"] = "false"
-                    });
-                });
+                // Program.cs reads these before Build(); UseSetting is visible then, ConfigureAppConfiguration is not.
+                builder.UseSetting("ConnectionStrings:Aegis", ConnectionString);
+                builder.UseSetting("Jwt:SigningKey", "production-test-signing-key-not-the-dev-default-32+");
+                builder.UseSetting("Aegis:AllowDevBootstrap", "false");
             });
 
         var client = factory.CreateClient();
