@@ -117,6 +117,7 @@ public sealed class AlertsController : ControllerBase
     public async Task<ActionResult<AlertResponse>> Assign(Guid id, [FromBody] AssignAlertRequest? request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
+        if (!TenantAuthorization.CanWorkAlerts(_tenant)) return Forbid();
         var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (alert is null) return NotFound();
 
@@ -146,6 +147,7 @@ public sealed class AlertsController : ControllerBase
     public async Task<ActionResult<AlertResponse>> Dismiss(Guid id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
+        if (!TenantAuthorization.CanWorkAlerts(_tenant)) return Forbid();
         var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (alert is null) return NotFound();
 
@@ -169,6 +171,7 @@ public sealed class AlertsController : ControllerBase
     public async Task<ActionResult<AlertResponse>> Resolve(Guid id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
+        if (!TenantAuthorization.CanWorkAlerts(_tenant)) return Forbid();
         var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (alert is null) return NotFound();
 
@@ -192,6 +195,7 @@ public sealed class AlertsController : ControllerBase
     public async Task<IActionResult> CreateCase(Guid id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
+        if (!TenantAuthorization.CanWorkAlerts(_tenant)) return Forbid();
         var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (alert is null) return NotFound();
 

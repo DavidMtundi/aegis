@@ -14,8 +14,10 @@ public static class TenantAuthorization
 
     public static bool CanManageRules(ITenantContext tenant) => IsAdmin(tenant);
 
-    public static bool CanCloseCases(ITenantContext tenant)
+    public static bool CanWorkAlerts(ITenantContext tenant)
         => tenant.IsAuthenticated
            && (IsAdmin(tenant)
                || tenant.Roles.Any(r => string.Equals(r, RoleNames.Analyst, StringComparison.OrdinalIgnoreCase)));
+
+    public static bool CanCloseCases(ITenantContext tenant) => CanWorkAlerts(tenant);
 }

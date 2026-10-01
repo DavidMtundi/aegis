@@ -86,6 +86,7 @@ public sealed class CasesController : ControllerBase
     public async Task<ActionResult<CaseResponse>> Assign(Guid id, [FromBody] AssignCaseRequest? request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
+        if (!TenantAuthorization.CanWorkAlerts(_tenant)) return Forbid();
         var c = await _cases.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (c is null) return NotFound();
 
@@ -120,6 +121,7 @@ public sealed class CasesController : ControllerBase
     public async Task<ActionResult<CaseResponse>> AddNote(Guid id, [FromBody] AddNoteRequest request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
+        if (!TenantAuthorization.CanWorkAlerts(_tenant)) return Forbid();
         if (string.IsNullOrWhiteSpace(request.Text))
             return BadRequest("Text is required.");
 
