@@ -126,13 +126,13 @@ public sealed class OperatorApisTests : IAsyncLifetime
         var alertList = await filtered.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(alertList.GetProperty("totalCount").GetInt32() >= 1);
 
-        var assign = await _client.PostAsJsonAsync($"/api/v1/alerts/{alertId}/assign", new { assignedTo = "analyst@example.com" });
+        var assign = await _client.PostAsJsonAsync($"/api/v1/alerts/{alertId}/assign", new { });
         Assert.Equal(HttpStatusCode.OK, assign.StatusCode);
         var assigned = await assign.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("ASSIGNED", assigned.GetProperty("status").GetString());
-        Assert.Equal("analyst@example.com", assigned.GetProperty("assignedTo").GetString());
+        Assert.True(Guid.TryParse(assigned.GetProperty("assignedTo").GetString(), out _));
 
-        var dismiss = await _client.PostAsync($"/api/v1/alerts/{alertId}/dismiss", null);
+        var dismiss = await _client.PostAsJsonAsync($"/api/v1/alerts/{alertId}/dismiss", new { reason = "Test data" });
         Assert.Equal(HttpStatusCode.OK, dismiss.StatusCode);
         var dismissed = await dismiss.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("DISMISSED", dismissed.GetProperty("status").GetString());

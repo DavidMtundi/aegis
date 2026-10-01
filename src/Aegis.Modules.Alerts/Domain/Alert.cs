@@ -18,6 +18,7 @@ public sealed class Alert : AggregateRoot
     public string DeduplicationKey { get; private set; } = null!;
     public string? AssignedTo { get; private set; }
     public DateTimeOffset? ResolvedAt { get; private set; }
+    public string? DismissalReason { get; private set; }
 
     private Alert() { }
 
@@ -51,30 +52,56 @@ public sealed class Alert : AggregateRoot
         };
     }
 
+    public bool IsClosed => Status is AlertStatus.RESOLVED or AlertStatus.DISMISSED or AlertStatus.CLOSED;
+
     public void Assign(string assignedTo)
     {
+        EnsureOpen();
         AssignedTo = assignedTo;
-        Status = AlertStatus.ASSIGNED;
+        if (Status != AlertStatus.ESCALATED)
+        {
+            Status = AlertStatus.ASSIGNED;
+        }
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
     public void Resolve(string resolvedBy)
     {
+        EnsureOpen();
         Status = AlertStatus.RESOLVED;
         ResolvedAt = DateTimeOffset.UtcNow;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    public void Dismiss(string dismissedBy)
+    public void Dismiss(string dismissedBy, string reason)
     {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new ArgumentException("A dismissal reason is required.", nameof(reason));
+        }
+        EnsureOpen();
         Status = AlertStatus.DISMISSED;
+        DismissalReason = reason.Trim();
         ResolvedAt = DateTimeOffset.UtcNow;
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
     public void Escalate(string escalatedBy)
     {
+        EnsureOpen();
+        if (Status == AlertStatus.ESCALATED)
+        {
+            throw new InvalidOperationException("Alert is already escalated.");
+        }
         Status = AlertStatus.ESCALATED;
         UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    private void EnsureOpen()
+    {
+        if (IsClosed)
+        {
+            throw new InvalidOperationException($"Alert is {Status} and cannot be changed.");
+        }
     }
 }

@@ -29,6 +29,7 @@ public sealed class AlertConfiguration : IEntityTypeConfiguration<Alert>
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
         builder.Property(x => x.DeduplicationKey).HasColumnName("deduplication_key").HasMaxLength(500).IsRequired();
         builder.Property(x => x.AssignedTo).HasMaxLength(200);
+        builder.Property(x => x.DismissalReason).HasColumnName("dismissal_reason").HasMaxLength(2000);
         builder.Property(x => x.Evidence)
             .HasColumnName("evidence_json")
             .HasColumnType("jsonb")

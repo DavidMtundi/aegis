@@ -15,6 +15,7 @@ public static class Permissions
     public const string AlertAssign = "alert.assign";
     public const string AlertDismiss = "alert.dismiss";
     public const string AlertResolve = "alert.resolve";
+    public const string AlertEscalate = "alert.escalate";
     public const string CaseRead = "case.read";
     public const string CaseCreate = "case.create";
     public const string CaseUpdate = "case.update";
@@ -28,7 +29,7 @@ public static class Permissions
     public static readonly IReadOnlyList<string> All = new[]
     {
         CustomerRead, CustomerWrite, TransactionRead, TransactionWrite,
-        AlertRead, AlertAssign, AlertDismiss, AlertResolve,
+        AlertRead, AlertAssign, AlertDismiss, AlertResolve, AlertEscalate,
         CaseRead, CaseCreate, CaseUpdate, CaseClose,
         RuleRead, RuleCreate, RuleActivate,
         AuditRead, UserManage
@@ -49,7 +50,7 @@ public static class RolePermissions
     private static readonly string[] AnalystGrants = ViewerGrants.Concat(new[]
     {
         Permissions.CustomerWrite, Permissions.TransactionWrite,
-        Permissions.AlertAssign, Permissions.AlertDismiss, Permissions.AlertResolve,
+        Permissions.AlertAssign, Permissions.AlertDismiss, Permissions.AlertResolve, Permissions.AlertEscalate,
         Permissions.CaseCreate, Permissions.CaseUpdate, Permissions.CaseClose
     }).ToArray();
 

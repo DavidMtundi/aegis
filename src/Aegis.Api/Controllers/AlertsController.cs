@@ -7,6 +7,8 @@ using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Audit.Domain;
 using Aegis.Modules.Cases.Application;
 using Aegis.Modules.Cases.Domain;
+using Aegis.Modules.Identity.Application;
+using Aegis.Modules.Identity.Domain;
 using Aegis.Shared.Domain;
 using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
@@ -20,6 +22,7 @@ public sealed class AlertsController : ControllerBase
 {
     private readonly IAlertRepository _alerts;
     private readonly ICaseRepository _cases;
+    private readonly IUserRepository _users;
     private readonly ITenantContext _tenant;
     private readonly IAuditWriter _audit;
     private readonly IUnitOfWork _uow;
@@ -27,12 +30,14 @@ public sealed class AlertsController : ControllerBase
     public AlertsController(
         IAlertRepository alerts,
         ICaseRepository cases,
+        IUserRepository users,
         ITenantContext tenant,
         IAuditWriter audit,
         IUnitOfWork uow)
     {
         _alerts = alerts;
         _cases = cases;
+        _users = users;
         _tenant = tenant;
         _audit = audit;
         _uow = uow;
@@ -50,6 +55,7 @@ public sealed class AlertsController : ControllerBase
         string? AssignedTo,
         DateTimeOffset TriggeredAt,
         DateTimeOffset? ResolvedAt,
+        string? DismissalReason,
         string DeduplicationKey,
         string RuleName,
         int RuleVersionNumber,
@@ -65,6 +71,9 @@ public sealed class AlertsController : ControllerBase
         int TotalCount);
 
     public sealed record AssignAlertRequest(string? AssignedTo);
+    public sealed record AlertReasonRequest(string? Reason);
+
+    private const int MaxReasonLength = 2000;
 
     [HttpGet]
     [RequirePermission(Permissions.AlertRead)]
@@ -123,49 +132,40 @@ public sealed class AlertsController : ControllerBase
         if (!_tenant.IsAuthenticated) return Unauthorized();
         var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (alert is null) return NotFound();
+        if (alert.IsClosed) return Conflict($"Alert is {alert.Status} and cannot be changed.");
 
-        var assignee = string.IsNullOrWhiteSpace(request?.AssignedTo)
-            ? _tenant.UserId.ToString()
-            : request.AssignedTo.Trim();
-        if (assignee.Length > 200)
-            return BadRequest("AssignedTo must be at most 200 characters.");
+        var assigneeId = _tenant.UserId;
+        if (!string.IsNullOrWhiteSpace(request?.AssignedTo) && !Guid.TryParse(request.AssignedTo.Trim(), out assigneeId))
+            return BadRequest("AssignedTo must be a user id.");
 
-        alert.Assign(assignee);
-        await _audit.AppendAsync(AuditEvent.Create(
-            _tenant.TenantId.Value,
-            AuditEventTypes.ALERT_ASSIGNED,
-            nameof(Alert),
-            alert.Id.ToString(),
-            _tenant.UserId.ToString(),
-            _tenant.Roles.FirstOrDefault(),
-            null,
-            AuditPayload.Json(new { assignedTo = assignee }),
-            "Alert assigned",
-            HttpContext.TraceIdentifier), ct);
+        var assignee = await _users.GetByTenantAndIdAsync(_tenant.TenantId, assigneeId, ct);
+        if (assignee is null || assignee.Status != UserStatus.ACTIVE)
+            return BadRequest("AssignedTo must be an active user in this tenant.");
+
+        alert.Assign(assignee.Id.ToString());
+        await AppendAuditAsync(alert, AuditEventTypes.ALERT_ASSIGNED,
+            AuditPayload.Json(new { assignedTo = alert.AssignedTo, assigneeEmail = assignee.Email }), "Alert assigned", ct);
         await _uow.SaveChangesAsync(ct);
         return Ok(ToResponse(alert));
     }
 
     [HttpPost("{id:guid}/dismiss")]
     [RequirePermission(Permissions.AlertDismiss)]
-    public async Task<ActionResult<AlertResponse>> Dismiss(Guid id, CancellationToken ct)
+    public async Task<ActionResult<AlertResponse>> Dismiss(Guid id, [FromBody] AlertReasonRequest? request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
+        if (string.IsNullOrWhiteSpace(request?.Reason))
+            return BadRequest("A dismissal reason is required.");
+        if (request.Reason.Length > MaxReasonLength)
+            return BadRequest($"Reason must be at most {MaxReasonLength} characters.");
+
         var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (alert is null) return NotFound();
+        if (alert.IsClosed) return Conflict($"Alert is {alert.Status} and cannot be changed.");
 
-        alert.Dismiss(_tenant.UserId.ToString());
-        await _audit.AppendAsync(AuditEvent.Create(
-            _tenant.TenantId.Value,
-            AuditEventTypes.ALERT_DISMISSED,
-            nameof(Alert),
-            alert.Id.ToString(),
-            _tenant.UserId.ToString(),
-            _tenant.Roles.FirstOrDefault(),
-            null,
-            null,
-            "Alert dismissed",
-            HttpContext.TraceIdentifier), ct);
+        alert.Dismiss(_tenant.UserId.ToString(), request.Reason);
+        await AppendAuditAsync(alert, AuditEventTypes.ALERT_DISMISSED,
+            AuditPayload.Json(new { reason = alert.DismissalReason }), "Alert dismissed", ct);
         await _uow.SaveChangesAsync(ct);
         return Ok(ToResponse(alert));
     }
@@ -177,22 +177,46 @@ public sealed class AlertsController : ControllerBase
         if (!_tenant.IsAuthenticated) return Unauthorized();
         var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (alert is null) return NotFound();
+        if (alert.IsClosed) return Conflict($"Alert is {alert.Status} and cannot be changed.");
 
         alert.Resolve(_tenant.UserId.ToString());
-        await _audit.AppendAsync(AuditEvent.Create(
+        await AppendAuditAsync(alert, AuditEventTypes.ALERT_RESOLVED, null, "Alert resolved", ct);
+        await _uow.SaveChangesAsync(ct);
+        return Ok(ToResponse(alert));
+    }
+
+    [HttpPost("{id:guid}/escalate")]
+    [RequirePermission(Permissions.AlertEscalate)]
+    public async Task<ActionResult<AlertResponse>> Escalate(Guid id, [FromBody] AlertReasonRequest? request, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated) return Unauthorized();
+        if (request?.Reason is { Length: > MaxReasonLength })
+            return BadRequest($"Reason must be at most {MaxReasonLength} characters.");
+
+        var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
+        if (alert is null) return NotFound();
+        if (alert.IsClosed || alert.Status == AlertStatus.ESCALATED)
+            return Conflict($"Alert is {alert.Status} and cannot be escalated.");
+
+        alert.Escalate(_tenant.UserId.ToString());
+        await AppendAuditAsync(alert, AuditEventTypes.ALERT_ESCALATED,
+            AuditPayload.Json(new { reason = request?.Reason?.Trim() }), "Alert escalated", ct);
+        await _uow.SaveChangesAsync(ct);
+        return Ok(ToResponse(alert));
+    }
+
+    private Task AppendAuditAsync(Alert alert, string eventType, string? after, string reason, CancellationToken ct)
+        => _audit.AppendAsync(AuditEvent.Create(
             _tenant.TenantId.Value,
-            AuditEventTypes.ALERT_RESOLVED,
+            eventType,
             nameof(Alert),
             alert.Id.ToString(),
             _tenant.UserId.ToString(),
             _tenant.Roles.FirstOrDefault(),
             null,
-            null,
-            "Alert resolved",
+            after,
+            reason,
             HttpContext.TraceIdentifier), ct);
-        await _uow.SaveChangesAsync(ct);
-        return Ok(ToResponse(alert));
-    }
 
     [HttpPost("{id:guid}/create-case")]
     [RequirePermission(Permissions.CaseCreate)]
@@ -247,6 +271,7 @@ public sealed class AlertsController : ControllerBase
         alert.AssignedTo,
         alert.TriggeredAt,
         alert.ResolvedAt,
+        alert.DismissalReason,
         alert.DeduplicationKey,
         alert.Evidence.RuleName,
         alert.Evidence.RuleVersionNumber,
