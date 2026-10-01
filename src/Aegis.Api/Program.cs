@@ -1,4 +1,5 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Aegis.Api.Middleware;
 using Aegis.Infrastructure;
 using Aegis.Infrastructure.Persistence;
@@ -44,6 +45,21 @@ try
     builder.Services.AddCors(o => o.AddPolicy("Default", p =>
         p.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader()));
 
+    var loginPermitLimit = builder.Configuration.GetValue("RateLimiting:Login:PermitLimit", 10);
+    var loginWindow = TimeSpan.FromSeconds(builder.Configuration.GetValue("RateLimiting:Login:WindowSeconds", 60));
+    builder.Services.AddRateLimiter(o =>
+    {
+        o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        o.AddPolicy("login", http => RateLimitPartition.GetFixedWindowLimiter(
+            http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = loginPermitLimit,
+                Window = loginWindow,
+                QueueLimit = 0
+            }));
+    });
+
     var app = builder.Build();
 
     using (var scope = app.Services.CreateScope())
@@ -65,6 +81,7 @@ try
     }
 
     app.UseCors("Default");
+    app.UseRateLimiter();
     app.UseAuthentication();
     app.UseMiddleware<TenantContextMiddleware>();
     app.UseAuthorization();

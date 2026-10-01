@@ -9,6 +9,7 @@ using Aegis.Shared.Domain;
 using Aegis.Shared.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 [ApiController]
 [Route("api/v1/auth")]
@@ -42,6 +43,7 @@ public sealed class AuthController : ControllerBase
 
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting("login")]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
         var tenant = await _tenants.GetBySlugAsync(request.TenantSlug, ct);
