@@ -1,10 +1,16 @@
 namespace Aegis.Api.Controllers;
 
 using Aegis.Api.Authorization;
+using Aegis.Modules.Alerts.Application;
+using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Audit.Domain;
+using Aegis.Modules.Cases.Application;
+using Aegis.Modules.Cases.Domain;
 using Aegis.Modules.Customers.Application;
 using Aegis.Modules.Customers.Domain;
+using Aegis.Modules.Transactions.Application;
+using Aegis.Shared.Domain;
 using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -15,8 +21,14 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/v1/customers")]
 public sealed class CustomersController : ControllerBase
 {
+    /// <summary>Most recent items per section in the customer overview.</summary>
+    private const int OverviewTake = 50;
+
     private readonly ICustomerRepository _customers;
     private readonly IAccountRepository _accounts;
+    private readonly ITransactionRepository _transactions;
+    private readonly IAlertRepository _alerts;
+    private readonly ICaseRepository _cases;
     private readonly ITenantContext _tenant;
     private readonly IAuditWriter _audit;
     private readonly IUnitOfWork _uow;
@@ -24,12 +36,18 @@ public sealed class CustomersController : ControllerBase
     public CustomersController(
         ICustomerRepository customers,
         IAccountRepository accounts,
+        ITransactionRepository transactions,
+        IAlertRepository alerts,
+        ICaseRepository cases,
         ITenantContext tenant,
         IAuditWriter audit,
         IUnitOfWork uow)
     {
         _customers = customers;
         _accounts = accounts;
+        _transactions = transactions;
+        _alerts = alerts;
+        _cases = cases;
         _tenant = tenant;
         _audit = audit;
         _uow = uow;
@@ -97,6 +115,63 @@ public sealed class CustomersController : ControllerBase
         var customer = await _customers.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         return customer is null ? NotFound() : Ok(ToCustomerResponse(customer));
     }
+
+    [HttpGet("{id:guid}/overview")]
+    [RequirePermission(Permissions.CustomerRead)]
+    public async Task<IActionResult> Overview(Guid id, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated) return Unauthorized();
+        var customer = await _customers.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
+        if (customer is null) return NotFound();
+
+        var accounts = await _accounts.ListByCustomerAsync(_tenant.TenantId, customer.CustomerId, ct);
+
+        TransactionListResult? transactions = null;
+        if (Can(Permissions.TransactionRead))
+            transactions = await _transactions.ListByTenantAsync(
+                _tenant.TenantId, new TransactionListQuery(CustomerId: id, PageSize: OverviewTake), ct);
+
+        IReadOnlyList<Alert>? alerts = null;
+        if (Can(Permissions.AlertRead))
+            alerts = await _alerts.ListByFocusAsync(_tenant.TenantId, FocusType.CUSTOMER, id.ToString(), OverviewTake, ct);
+
+        IReadOnlyList<ComplianceCase>? cases = null;
+        if (Can(Permissions.CaseRead))
+            cases = await _cases.ListByCustomerAsync(_tenant.TenantId, id, OverviewTake, ct);
+
+        return Ok(new
+        {
+            customer = ToCustomerResponse(customer),
+            accounts = accounts.Select(a => new
+            {
+                id = a.Id,
+                accountType = a.AccountType.ToString(),
+                currency = a.Currency,
+                status = a.Status.ToString(),
+                externalReference = a.ExternalReference,
+                openedAt = a.OpenedAt
+            }).ToList(),
+            recentTransactions = transactions?.Items.Select(TransactionsController.ToTransactionResponse).ToList(),
+            alerts = alerts?.Select(a => new
+            {
+                id = a.Id,
+                ruleName = a.Evidence.RuleName,
+                severity = a.Severity.ToString(),
+                status = a.Status.ToString(),
+                riskScore = a.RiskScore,
+                triggeredAt = a.TriggeredAt
+            }).ToList(),
+            cases = cases?.Select(CasesController.ToResponse).ToList(),
+            summary = new
+            {
+                transactionCount = transactions?.TotalCount,
+                openAlerts = alerts?.Count(a => !a.IsClosed),
+                openCases = cases?.Count(c => c.Status != CaseStatus.CLOSED)
+            }
+        });
+    }
+
+    private bool Can(string permission) => RolePermissions.Grants(_tenant.Roles, permission);
 
     [HttpGet]
     [RequirePermission(Permissions.CustomerRead)]

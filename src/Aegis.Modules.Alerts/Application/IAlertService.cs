@@ -22,6 +22,8 @@ public interface IAlertRepository
     Task<Alert?> GetByTenantAndDeduplicationKeyAsync(TenantId tenantId, string deduplicationKey, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Alert>> ListByTenantAsync(TenantId tenantId, int take = 100, CancellationToken cancellationToken = default);
     Task<AlertListResult> ListByTenantAsync(TenantId tenantId, AlertListQuery query, CancellationToken cancellationToken = default);
+    /// <summary>Most recent first.</summary>
+    Task<IReadOnlyList<Alert>> ListByFocusAsync(TenantId tenantId, FocusType focusType, string focusEntityId, int take, CancellationToken cancellationToken = default);
     Task AddAsync(Alert alert, CancellationToken cancellationToken = default);
 }
 

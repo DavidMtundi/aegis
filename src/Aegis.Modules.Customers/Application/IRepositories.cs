@@ -20,5 +20,6 @@ public interface ICustomerRepository
 public interface IAccountRepository
 {
     Task<Account?> GetByTenantAndIdAsync(TenantId tenantId, Guid id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Account>> ListByCustomerAsync(TenantId tenantId, CustomerId customerId, CancellationToken cancellationToken = default);
     Task AddAsync(Account account, CancellationToken cancellationToken = default);
 }

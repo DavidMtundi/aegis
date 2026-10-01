@@ -11,5 +11,7 @@ public interface ICaseRepository
 {
     Task<ComplianceCase?> GetByTenantAndIdAsync(TenantId tenantId, Guid id, CancellationToken cancellationToken = default);
     Task<CaseListResult> ListByTenantAsync(TenantId tenantId, CaseListQuery query, CancellationToken cancellationToken = default);
+    /// <summary>Most recently opened first.</summary>
+    Task<IReadOnlyList<ComplianceCase>> ListByCustomerAsync(TenantId tenantId, Guid customerId, int take, CancellationToken cancellationToken = default);
     Task AddAsync(ComplianceCase complianceCase, CancellationToken cancellationToken = default);
 }

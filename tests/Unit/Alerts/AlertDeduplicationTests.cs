@@ -27,6 +27,11 @@ public sealed class AlertDeduplicationTests
         public Task<IReadOnlyList<Alert>> ListByTenantAsync(TenantId tenantId, int take = 100, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<Alert>>(Items.Where(a => a.TenantId == tenantId).Take(take).ToList());
 
+        public Task<IReadOnlyList<Alert>> ListByFocusAsync(TenantId tenantId, FocusType focusType, string focusEntityId, int take, CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<Alert>>(Items
+                .Where(a => a.TenantId == tenantId && a.FocusType == focusType && a.FocusEntityId == focusEntityId)
+                .Take(take).ToList());
+
         public Task<AlertListResult> ListByTenantAsync(TenantId tenantId, AlertListQuery query, CancellationToken cancellationToken = default)
         {
             var page = Math.Max(1, query.Page);

@@ -150,7 +150,7 @@ public sealed class TransactionsController : ControllerBase
         return tx is null ? NotFound() : Ok(ToTransactionResponse(tx));
     }
 
-    private static object ToTransactionResponse(Modules.Transactions.Domain.CanonicalTransaction tx) => new
+    internal static object ToTransactionResponse(Modules.Transactions.Domain.CanonicalTransaction tx) => new
     {
         id = tx.Id,
         externalReference = tx.ExternalReference,

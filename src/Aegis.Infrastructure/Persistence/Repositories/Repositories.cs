@@ -163,6 +163,12 @@ public sealed class AccountRepository : Aegis.Modules.Customers.Application.IAcc
     public Task<Aegis.Modules.Customers.Domain.Account?> GetByTenantAndIdAsync(TenantId tenantId, Guid id, CancellationToken cancellationToken = default)
         => _db.Accounts.FirstOrDefaultAsync(a => a.TenantId == tenantId && a.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyList<Aegis.Modules.Customers.Domain.Account>> ListByCustomerAsync(TenantId tenantId, CustomerId customerId, CancellationToken cancellationToken = default)
+        => await _db.Accounts.AsNoTracking()
+            .Where(a => a.TenantId == tenantId && a.CustomerId == customerId)
+            .OrderBy(a => a.OpenedAt)
+            .ToListAsync(cancellationToken);
+
     public async Task AddAsync(Aegis.Modules.Customers.Domain.Account account, CancellationToken cancellationToken = default)
     {
         await _db.Accounts.AddAsync(account, cancellationToken);
@@ -354,6 +360,13 @@ public sealed class AlertRepository : IAlertRepository
         return new AlertListResult(items, total, page, pageSize);
     }
 
+    public async Task<IReadOnlyList<Alert>> ListByFocusAsync(TenantId tenantId, FocusType focusType, string focusEntityId, int take, CancellationToken cancellationToken = default)
+        => await _db.Alerts.AsNoTracking()
+            .Where(a => a.TenantId == tenantId && a.FocusType == focusType && a.FocusEntityId == focusEntityId)
+            .OrderByDescending(a => a.TriggeredAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
     public async Task AddAsync(Alert alert, CancellationToken cancellationToken = default)
         => await _db.Alerts.AddAsync(alert, cancellationToken);
 }
@@ -383,6 +396,14 @@ public sealed class CaseRepository : Aegis.Modules.Cases.Application.ICaseReposi
             .ToListAsync(cancellationToken);
         return new Aegis.Modules.Cases.Application.CaseListResult(items, total, page, pageSize);
     }
+
+    public async Task<IReadOnlyList<Aegis.Modules.Cases.Domain.ComplianceCase>> ListByCustomerAsync(
+        TenantId tenantId, Guid customerId, int take, CancellationToken cancellationToken = default)
+        => await _db.Cases.AsNoTracking()
+            .Where(c => c.TenantId == tenantId && c.CustomerId == customerId)
+            .OrderByDescending(c => c.OpenedAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
 
     public async Task AddAsync(Aegis.Modules.Cases.Domain.ComplianceCase complianceCase, CancellationToken cancellationToken = default)
         => await _db.Cases.AddAsync(complianceCase, cancellationToken);
