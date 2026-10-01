@@ -1,5 +1,6 @@
 namespace Aegis.Api.Controllers;
 
+using Aegis.Api.Authorization;
 using Aegis.Modules.Alerts.Application;
 using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Audit.Application;
@@ -66,6 +67,7 @@ public sealed class AlertsController : ControllerBase
     public sealed record AssignAlertRequest(string? AssignedTo);
 
     [HttpGet]
+    [RequirePermission(Permissions.AlertRead)]
     public async Task<ActionResult<AlertListResponse>> List(
         [FromQuery] string? status,
         [FromQuery] string? severity,
@@ -106,6 +108,7 @@ public sealed class AlertsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission(Permissions.AlertRead)]
     public async Task<ActionResult<AlertResponse>> GetById(Guid id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
@@ -114,10 +117,10 @@ public sealed class AlertsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/assign")]
+    [RequirePermission(Permissions.AlertAssign)]
     public async Task<ActionResult<AlertResponse>> Assign(Guid id, [FromBody] AssignAlertRequest? request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
-        if (!TenantAuthorization.CanWorkAlerts(_tenant)) return Forbid();
         var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (alert is null) return NotFound();
 
@@ -144,10 +147,10 @@ public sealed class AlertsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/dismiss")]
+    [RequirePermission(Permissions.AlertDismiss)]
     public async Task<ActionResult<AlertResponse>> Dismiss(Guid id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
-        if (!TenantAuthorization.CanWorkAlerts(_tenant)) return Forbid();
         var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (alert is null) return NotFound();
 
@@ -168,10 +171,10 @@ public sealed class AlertsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/resolve")]
+    [RequirePermission(Permissions.AlertResolve)]
     public async Task<ActionResult<AlertResponse>> Resolve(Guid id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
-        if (!TenantAuthorization.CanWorkAlerts(_tenant)) return Forbid();
         var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (alert is null) return NotFound();
 
@@ -192,10 +195,10 @@ public sealed class AlertsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/create-case")]
+    [RequirePermission(Permissions.CaseCreate)]
     public async Task<IActionResult> CreateCase(Guid id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
-        if (!TenantAuthorization.CanWorkAlerts(_tenant)) return Forbid();
         var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (alert is null) return NotFound();
 

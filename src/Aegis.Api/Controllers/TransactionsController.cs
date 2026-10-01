@@ -1,5 +1,6 @@
 namespace Aegis.Api.Controllers;
 
+using Aegis.Api.Authorization;
 using Aegis.Application.Transactions;
 using Aegis.Modules.Transactions.Application;
 using Aegis.Shared.Security;
@@ -54,6 +55,7 @@ public sealed class TransactionsController : ControllerBase
         IReadOnlyList<Guid> AlertIds);
 
     [HttpPost]
+    [RequirePermission(Permissions.TransactionWrite)]
     public async Task<ActionResult<IngestResponse>> Ingest([FromBody] IngestRequest request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
@@ -116,6 +118,7 @@ public sealed class TransactionsController : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.TransactionRead)]
     public async Task<IActionResult> List(
         [FromQuery] Guid? customerId,
         [FromQuery] DateTimeOffset? from,
@@ -139,6 +142,7 @@ public sealed class TransactionsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission(Permissions.TransactionRead)]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();

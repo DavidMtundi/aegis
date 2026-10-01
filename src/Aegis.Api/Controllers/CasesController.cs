@@ -1,5 +1,6 @@
 namespace Aegis.Api.Controllers;
 
+using Aegis.Api.Authorization;
 using Aegis.Modules.Alerts.Application;
 using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Audit.Domain;
@@ -60,6 +61,7 @@ public sealed class CasesController : ControllerBase
     public sealed record CloseCaseRequest(string Disposition, string Conclusion);
 
     [HttpGet]
+    [RequirePermission(Permissions.CaseRead)]
     public async Task<ActionResult<CaseListResponse>> List(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
@@ -75,6 +77,7 @@ public sealed class CasesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission(Permissions.CaseRead)]
     public async Task<ActionResult<CaseResponse>> Get(Guid id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
@@ -83,10 +86,10 @@ public sealed class CasesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/assign")]
+    [RequirePermission(Permissions.CaseUpdate)]
     public async Task<ActionResult<CaseResponse>> Assign(Guid id, [FromBody] AssignCaseRequest? request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
-        if (!TenantAuthorization.CanWorkAlerts(_tenant)) return Forbid();
         var c = await _cases.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
         if (c is null) return NotFound();
 
@@ -118,10 +121,10 @@ public sealed class CasesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/notes")]
+    [RequirePermission(Permissions.CaseUpdate)]
     public async Task<ActionResult<CaseResponse>> AddNote(Guid id, [FromBody] AddNoteRequest request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
-        if (!TenantAuthorization.CanWorkAlerts(_tenant)) return Forbid();
         if (string.IsNullOrWhiteSpace(request.Text))
             return BadRequest("Text is required.");
 
@@ -153,10 +156,10 @@ public sealed class CasesController : ControllerBase
     }
 
     [HttpPost("{id:guid}/close")]
+    [RequirePermission(Permissions.CaseClose)]
     public async Task<ActionResult<CaseResponse>> Close(Guid id, [FromBody] CloseCaseRequest request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
-        if (!TenantAuthorization.CanCloseCases(_tenant)) return Forbid();
         if (string.IsNullOrWhiteSpace(request.Conclusion))
             return BadRequest("Conclusion is required.");
         if (!Enum.TryParse<CaseDisposition>(request.Disposition, true, out var disposition))

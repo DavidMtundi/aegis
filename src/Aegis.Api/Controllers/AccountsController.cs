@@ -1,5 +1,6 @@
 namespace Aegis.Api.Controllers;
 
+using Aegis.Api.Authorization;
 using Aegis.Modules.Customers.Application;
 using Aegis.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -20,6 +21,7 @@ public sealed class AccountsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission(Permissions.CustomerRead)]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();

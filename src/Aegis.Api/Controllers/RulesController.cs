@@ -1,5 +1,6 @@
 namespace Aegis.Api.Controllers;
 
+using Aegis.Api.Authorization;
 using Aegis.Modules.Aml.Application;
 using Aegis.Modules.Aml.Domain;
 using Aegis.Modules.Aml.Engine;
@@ -64,6 +65,7 @@ public sealed class RulesController : ControllerBase
     public sealed record CreateDraftRequest(RuleDefinition Definition);
 
     [HttpGet]
+    [RequirePermission(Permissions.RuleRead)]
     public async Task<ActionResult<IReadOnlyList<RuleSummaryResponse>>> List(CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
@@ -72,6 +74,7 @@ public sealed class RulesController : ControllerBase
     }
 
     [HttpGet("{ruleId:guid}")]
+    [RequirePermission(Permissions.RuleRead)]
     public async Task<ActionResult<RuleDetailResponse>> GetByRuleId(Guid ruleId, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
@@ -80,6 +83,7 @@ public sealed class RulesController : ControllerBase
     }
 
     [HttpGet("{ruleId:guid}/versions")]
+    [RequirePermission(Permissions.RuleRead)]
     public async Task<ActionResult<IReadOnlyList<RuleSummaryResponse>>> ListVersions(Guid ruleId, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
@@ -88,10 +92,10 @@ public sealed class RulesController : ControllerBase
     }
 
     [HttpPost("{ruleId:guid}/versions")]
+    [RequirePermission(Permissions.RuleCreate)]
     public async Task<ActionResult<RuleDetailResponse>> CreateDraft(Guid ruleId, [FromBody] CreateDraftRequest request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
-        if (!TenantAuthorization.CanManageRules(_tenant)) return Forbid();
         if (request.Definition is null) return BadRequest("Definition is required.");
 
         var validation = _validator.Validate(request.Definition);
@@ -126,11 +130,10 @@ public sealed class RulesController : ControllerBase
     }
 
     [HttpPost("versions/{versionId:guid}/activate")]
+    [RequirePermission(Permissions.RuleActivate)]
     public async Task<ActionResult<RuleDetailResponse>> Activate(Guid versionId, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
-        if (!TenantAuthorization.CanManageRules(_tenant)) return Forbid();
-
         var version = await _ruleVersions.GetByTenantAndIdAsync(_tenant.TenantId, versionId, ct);
         if (version is null) return NotFound();
         if (version.Status == RuleVersionStatus.ACTIVE)

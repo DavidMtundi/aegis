@@ -1,5 +1,6 @@
 namespace Aegis.Api.Controllers;
 
+using Aegis.Api.Authorization;
 using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Audit.Domain;
 using Aegis.Shared.Security;
@@ -37,6 +38,7 @@ public sealed class AuditEventsController : ControllerBase
     /// Clients may read tenant-scoped events; they must not create arbitrary audit rows.
     /// </summary>
     [HttpGet]
+    [RequirePermission(Permissions.AuditRead)]
     public async Task<ActionResult<IReadOnlyList<AuditEventResponse>>> List(CancellationToken ct)
     {
         if (!_tenantContext.IsAuthenticated)
@@ -49,6 +51,7 @@ public sealed class AuditEventsController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission(Permissions.AuditRead)]
     public async Task<ActionResult<AuditEventResponse>> GetById(Guid id, CancellationToken ct)
     {
         if (!_tenantContext.IsAuthenticated)

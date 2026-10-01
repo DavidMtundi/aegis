@@ -1,5 +1,6 @@
 namespace Aegis.Api.Controllers;
 
+using Aegis.Api.Authorization;
 using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Audit.Domain;
 using Aegis.Modules.Customers.Application;
@@ -48,6 +49,7 @@ public sealed class CustomersController : ControllerBase
         string? ExternalReference);
 
     [HttpPost]
+    [RequirePermission(Permissions.CustomerWrite)]
     public async Task<IActionResult> Create([FromBody] CreateCustomerRequest request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
@@ -88,6 +90,7 @@ public sealed class CustomersController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [RequirePermission(Permissions.CustomerRead)]
     public async Task<IActionResult> Get(Guid id, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
@@ -96,6 +99,7 @@ public sealed class CustomersController : ControllerBase
     }
 
     [HttpGet]
+    [RequirePermission(Permissions.CustomerRead)]
     public async Task<IActionResult> List(
         [FromQuery] string? q,
         [FromQuery] int page = 1,
@@ -117,6 +121,7 @@ public sealed class CustomersController : ControllerBase
     }
 
     [HttpPost("{id:guid}/accounts")]
+    [RequirePermission(Permissions.CustomerWrite)]
     public async Task<IActionResult> CreateAccount(Guid id, [FromBody] CreateAccountRequest request, CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Threading.RateLimiting;
+using Aegis.Api.Authorization;
 using Aegis.Api.Middleware;
 using Aegis.Infrastructure;
 using Aegis.Infrastructure.Persistence;
@@ -40,7 +41,7 @@ try
     });
 
     builder.Services.AddAegisInfrastructure(builder.Configuration);
-    builder.Services.AddAuthorization();
+    builder.Services.AddPermissionAuthorization();
     var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
     builder.Services.AddCors(o => o.AddPolicy("Default", p =>
         p.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader()));
