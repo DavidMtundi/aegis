@@ -13,15 +13,18 @@ using Microsoft.AspNetCore.Mvc;
 public sealed class TransactionsController : ControllerBase
 {
     private readonly IIngestAndEvaluateStructuring _ingest;
+    private readonly ITransactionBatchIngestor _batch;
     private readonly ITransactionRepository _transactions;
     private readonly ITenantContext _tenant;
 
     public TransactionsController(
         IIngestAndEvaluateStructuring ingest,
+        ITransactionBatchIngestor batch,
         ITransactionRepository transactions,
         ITenantContext tenant)
     {
         _ingest = ingest;
+        _batch = batch;
         _transactions = transactions;
         _tenant = tenant;
     }
@@ -116,6 +119,68 @@ public sealed class TransactionsController : ControllerBase
             return BadRequest(ex.Message);
         }
     }
+
+    public sealed record BatchIngestRequest(IReadOnlyList<IngestRequest>? Transactions);
+
+    private const long MaxImportBytes = 5 * 1024 * 1024;
+
+    [HttpPost("batch")]
+    [RequirePermission(Permissions.TransactionWrite)]
+    public async Task<ActionResult<TransactionBatchResult>> Batch([FromBody] BatchIngestRequest request, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated) return Unauthorized();
+        var rows = request.Transactions ?? Array.Empty<IngestRequest>();
+        if (rows.Count == 0) return BadRequest("At least one transaction is required.");
+        if (rows.Count > ITransactionBatchIngestor.MaxRows)
+            return BadRequest($"A batch can contain at most {ITransactionBatchIngestor.MaxRows} transactions.");
+
+        var items = rows.Select((r, i) => r is null
+                ? new TransactionBatchItem(i + 1, null, null, "Row is empty.")
+                : new TransactionBatchItem(i + 1, r.ExternalReference?.Trim(), ToPayload(r)))
+            .ToList();
+        return Ok(await _batch.IngestAsync(BatchCommand(items), ct));
+    }
+
+    [HttpPost("import")]
+    [RequirePermission(Permissions.TransactionWrite)]
+    [RequestSizeLimit(MaxImportBytes)]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<TransactionBatchResult>> Import(IFormFile? file, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated) return Unauthorized();
+        if (file is null || file.Length == 0) return BadRequest("Upload a CSV file in the 'file' form field.");
+
+        string csv;
+        using (var reader = new StreamReader(file.OpenReadStream()))
+            csv = await reader.ReadToEndAsync(ct);
+
+        var parsed = TransactionCsvParser.Parse(csv);
+        if (parsed.HeaderErrors.Count > 0) return BadRequest(string.Join(" ", parsed.HeaderErrors));
+        if (parsed.Rows.Count == 0) return BadRequest("The CSV has no data rows.");
+        if (parsed.Rows.Count > ITransactionBatchIngestor.MaxRows)
+            return BadRequest($"An import can contain at most {ITransactionBatchIngestor.MaxRows} rows.");
+
+        var items = parsed.Rows
+            .Select(r => new TransactionBatchItem(r.LineNumber, r.ExternalReference, r.Payload, r.Error))
+            .ToList();
+        return Ok(await _batch.IngestAsync(BatchCommand(items), ct));
+    }
+
+    private TransactionBatchCommand BatchCommand(IReadOnlyList<TransactionBatchItem> items)
+        => new(_tenant.TenantId, _tenant.UserId, _tenant.Roles, items, HttpContext.TraceIdentifier);
+
+    private static IngestTransactionPayload ToPayload(IngestRequest r) => new(
+        r.ExternalReference ?? string.Empty,
+        r.AccountId,
+        r.CustomerId,
+        r.Amount,
+        r.Currency ?? string.Empty,
+        r.Direction ?? string.Empty,
+        r.TransactionType ?? string.Empty,
+        r.Channel ?? string.Empty,
+        r.Timestamp,
+        r.CounterpartyCountry,
+        r.Metadata);
 
     [HttpGet]
     [RequirePermission(Permissions.TransactionRead)]
