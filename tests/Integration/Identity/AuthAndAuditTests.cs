@@ -118,7 +118,7 @@ public sealed class AuthAndAuditTests : IAsyncLifetime
         var listA = await clientA.GetAsync("/api/v1/audit-events");
         Assert.Equal(HttpStatusCode.OK, listA.StatusCode);
         var auditsA = await listA.Content.ReadFromJsonAsync<JsonElement>();
-        var loginAudit = auditsA.EnumerateArray()
+        var loginAudit = auditsA.GetProperty("items").EnumerateArray()
             .First(e => e.GetProperty("eventType").GetString() == "USER_LOGIN");
         var auditId = loginAudit.GetProperty("id").GetGuid();
 

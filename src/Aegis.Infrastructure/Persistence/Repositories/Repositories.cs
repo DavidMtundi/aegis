@@ -97,6 +97,36 @@ public sealed class AuditEventRepository : IAuditEventRepository
             .Take(take)
             .ToListAsync(cancellationToken);
 
+    public async Task<AuditEventListResult> QueryAsync(Guid tenantId, AuditEventQuery query, CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(1, query.Page);
+        var pageSize = Math.Clamp(query.PageSize, 1, 200);
+
+        var filtered = _db.AuditEvents.AsNoTracking().Where(e => e.TenantId == tenantId);
+        if (!string.IsNullOrWhiteSpace(query.EventType))
+            filtered = filtered.Where(e => e.EventType == query.EventType.Trim());
+        if (!string.IsNullOrWhiteSpace(query.EntityType))
+            filtered = filtered.Where(e => e.EntityType == query.EntityType.Trim());
+        if (!string.IsNullOrWhiteSpace(query.EntityId))
+            filtered = filtered.Where(e => e.EntityId == query.EntityId.Trim());
+        if (!string.IsNullOrWhiteSpace(query.ActorId))
+            filtered = filtered.Where(e => e.ActorId == query.ActorId.Trim());
+        if (query.From is DateTimeOffset from)
+            filtered = filtered.Where(e => e.OccurredAt >= from);
+        if (query.To is DateTimeOffset to)
+            filtered = filtered.Where(e => e.OccurredAt <= to);
+
+        var total = await filtered.CountAsync(cancellationToken);
+        var items = await filtered
+            .OrderByDescending(e => e.OccurredAt)
+            .ThenByDescending(e => e.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return new AuditEventListResult(items, total, page, pageSize);
+    }
+
     public async Task<IReadOnlyList<AuditEvent>> ListByEntityIdsAsync(Guid tenantId, IReadOnlyCollection<string> entityIds, CancellationToken cancellationToken = default)
         => await _db.AuditEvents.AsNoTracking()
             .Where(e => e.TenantId == tenantId && entityIds.Contains(e.EntityId))

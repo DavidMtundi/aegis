@@ -140,7 +140,7 @@ public sealed class OperatorApisTests : IAsyncLifetime
         var audits = await _client.GetAsync("/api/v1/audit-events");
         audits.EnsureSuccessStatusCode();
         var auditTypes = (await audits.Content.ReadFromJsonAsync<JsonElement>())
-            .EnumerateArray()
+            .GetProperty("items").EnumerateArray()
             .Select(e => e.GetProperty("eventType").GetString())
             .ToList();
         Assert.Contains("ALERT_ASSIGNED", auditTypes);

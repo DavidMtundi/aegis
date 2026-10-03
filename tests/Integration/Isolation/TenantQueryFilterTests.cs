@@ -74,7 +74,7 @@ public sealed class TenantQueryFilterTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.NotFound, alert.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, complianceCase.StatusCode);
-        Assert.All(audit.EnumerateArray(), e => Assert.Equal(_b.TenantId, e.GetProperty("tenantId").GetGuid()));
-        Assert.DoesNotContain(audit.EnumerateArray(), e => e.GetProperty("entityId").GetString() == _alertA.ToString());
+        Assert.All(audit.GetProperty("items").EnumerateArray(), e => Assert.Equal(_b.TenantId, e.GetProperty("tenantId").GetGuid()));
+        Assert.DoesNotContain(audit.GetProperty("items").EnumerateArray(), e => e.GetProperty("entityId").GetString() == _alertA.ToString());
     }
 }

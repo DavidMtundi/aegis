@@ -145,6 +145,6 @@ public static class SliceHelpers
         var resp = await session.Client.GetAsync("/api/v1/audit-events");
         resp.EnsureSuccessStatusCode();
         var body = await resp.Content.ReadFromJsonAsync<JsonElement>();
-        return body.EnumerateArray().ToList();
+        return body.GetProperty("items").EnumerateArray().ToList();
     }
 }

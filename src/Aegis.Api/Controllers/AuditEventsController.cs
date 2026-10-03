@@ -31,7 +31,17 @@ public sealed class AuditEventsController : ControllerBase
         string EntityId,
         string ActorId,
         DateTimeOffset OccurredAt,
-        string? Reason);
+        string? Reason,
+        string? ActorRole,
+        string? BeforeState,
+        string? AfterState,
+        string? CorrelationId);
+
+    public sealed record AuditEventListResponse(
+        IReadOnlyList<AuditEventResponse> Items,
+        int Page,
+        int PageSize,
+        int TotalCount);
 
     /// <summary>
     /// Audit events are append-only via trusted application paths (ingest, bootstrap, login, etc.).
@@ -39,15 +49,36 @@ public sealed class AuditEventsController : ControllerBase
     /// </summary>
     [HttpGet]
     [RequirePermission(Permissions.AuditRead)]
-    public async Task<ActionResult<IReadOnlyList<AuditEventResponse>>> List(CancellationToken ct)
+    public async Task<ActionResult<AuditEventListResponse>> List(
+        [FromQuery] string? eventType,
+        [FromQuery] string? entityType,
+        [FromQuery] string? entityId,
+        [FromQuery] string? actorId,
+        [FromQuery] DateTimeOffset? from,
+        [FromQuery] DateTimeOffset? to,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
     {
         if (!_tenantContext.IsAuthenticated)
         {
             return Unauthorized();
         }
 
-        var events = await _auditEvents.ListByTenantAsync(_tenantContext.TenantId.Value, take: 100, ct);
-        return Ok(events.Select(ToResponse).ToList());
+        if (from is not null && to is not null && from > to)
+        {
+            return BadRequest("'from' must be before 'to'.");
+        }
+
+        var result = await _auditEvents.QueryAsync(
+            _tenantContext.TenantId.Value,
+            new AuditEventQuery(eventType, entityType, entityId, actorId, from, to, page, pageSize),
+            ct);
+        return Ok(new AuditEventListResponse(
+            result.Items.Select(ToResponse).ToList(),
+            result.Page,
+            result.PageSize,
+            result.TotalCount));
     }
 
     [HttpGet("{id:guid}")]
@@ -76,5 +107,9 @@ public sealed class AuditEventsController : ControllerBase
         audit.EntityId,
         audit.ActorId,
         audit.OccurredAt,
-        audit.Reason);
+        audit.Reason,
+        audit.ActorRole,
+        audit.BeforeState,
+        audit.AfterState,
+        audit.CorrelationId);
 }

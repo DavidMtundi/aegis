@@ -53,7 +53,7 @@ public sealed class AlertDedupeTests : IAsyncLifetime
         var audits = await client.GetAsync("/api/v1/audit-events");
         Assert.Equal(HttpStatusCode.OK, audits.StatusCode);
         var auditList = await audits.Content.ReadFromJsonAsync<JsonElement>();
-        var types = auditList.EnumerateArray().Select(e => e.GetProperty("eventType").GetString()).ToList();
+        var types = auditList.GetProperty("items").EnumerateArray().Select(e => e.GetProperty("eventType").GetString()).ToList();
         Assert.Contains("TRANSACTION_INGESTED", types);
         Assert.Equal(1, types.Count(t => t == "ALERT_CREATED"));
     }

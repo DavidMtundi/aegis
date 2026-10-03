@@ -123,7 +123,7 @@ public sealed class CaseWorkflowTests : IAsyncLifetime
         var audits = await _client.GetAsync("/api/v1/audit-events");
         audits.EnsureSuccessStatusCode();
         var types = (await audits.Content.ReadFromJsonAsync<JsonElement>())
-            .EnumerateArray()
+            .GetProperty("items").EnumerateArray()
             .Select(e => e.GetProperty("eventType").GetString())
             .ToList();
         Assert.Contains("CASE_CREATED", types);
