@@ -12,13 +12,13 @@ using Microsoft.AspNetCore.Mvc;
 [Route("api/v1/transactions")]
 public sealed class TransactionsController : ControllerBase
 {
-    private readonly IIngestAndEvaluateStructuring _ingest;
+    private readonly IIngestAndEvaluateRules _ingest;
     private readonly ITransactionBatchIngestor _batch;
     private readonly ITransactionRepository _transactions;
     private readonly ITenantContext _tenant;
 
     public TransactionsController(
-        IIngestAndEvaluateStructuring ingest,
+        IIngestAndEvaluateRules ingest,
         ITransactionBatchIngestor batch,
         ITransactionRepository transactions,
         ITenantContext tenant)
@@ -65,7 +65,7 @@ public sealed class TransactionsController : ControllerBase
 
         try
         {
-            var result = await _ingest.ExecuteAsync(new IngestAndEvaluateStructuringCommand(
+            var result = await _ingest.ExecuteAsync(new IngestAndEvaluateRulesCommand(
                 _tenant.TenantId,
                 _tenant.UserId,
                 _tenant.Roles.FirstOrDefault(),

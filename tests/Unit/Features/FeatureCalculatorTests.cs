@@ -34,17 +34,65 @@ public sealed class FeatureCalculatorTests
         CustomerId customerId,
         DateTimeOffset ts,
         decimal amount,
-        string extRef)
+        string extRef,
+        string currency = "KES")
         => CanonicalTransaction.Ingest(
             tenantId,
             extRef,
             new AccountId(Guid.NewGuid()),
             customerId,
             ts,
-            new Money(amount, "KES"),
+            new Money(amount, currency),
             TransactionDirection.CREDIT,
             TransactionType.TRANSFER,
             TransactionChannel.MOBILE);
+
+    [Fact]
+    public async Task Generic_features_cover_the_requested_window_while_fixed_names_keep_their_windows()
+    {
+        var tenantId = new TenantId(Guid.NewGuid());
+        var customerId = new CustomerId(Guid.NewGuid());
+        var asOf = DateTimeOffset.Parse("2026-09-23T12:00:00Z");
+        var txs = new[]
+        {
+            Tx(tenantId, customerId, asOf.AddDays(-6), 10_000m, "six-days"),
+            Tx(tenantId, customerId, asOf.AddDays(-8), 99_000m, "too-old"),
+            Tx(tenantId, customerId, asOf.AddHours(-2), 20_000m, "two-hours"),
+            Tx(tenantId, customerId, asOf, 30_000m, "asof")
+        };
+
+        var result = await new FeatureCalculator(new StubReadPort(txs)).CalculateAsync(
+            tenantId, FocusType.CUSTOMER, customerId.Value.ToString(), asOf, TimeSpan.FromDays(7));
+
+        Assert.Equal(3, Convert.ToInt32(result.Features["transaction_count"]));
+        Assert.Equal(60_000m, Convert.ToDecimal(result.Features["transaction_sum"]));
+        Assert.Equal(30_000m, Convert.ToDecimal(result.Features["max_single_amount"]));
+        Assert.Equal(2, Convert.ToInt32(result.Features["transaction_count_24h"]));
+        Assert.Equal(3, result.TransactionIds.Count);
+    }
+
+    [Fact]
+    public async Task Amount_features_only_use_the_triggering_currency()
+    {
+        var tenantId = new TenantId(Guid.NewGuid());
+        var customerId = new CustomerId(Guid.NewGuid());
+        var asOf = DateTimeOffset.Parse("2026-09-23T12:00:00Z");
+        var txs = new[]
+        {
+            Tx(tenantId, customerId, asOf.AddHours(-3), 500m, "usd", "USD"),
+            Tx(tenantId, customerId, asOf.AddHours(-2), 20_000m, "kes-1"),
+            Tx(tenantId, customerId, asOf, 30_000m, "kes-2")
+        };
+
+        var result = await new FeatureCalculator(new StubReadPort(txs)).CalculateAsync(
+            tenantId, FocusType.CUSTOMER, customerId.Value.ToString(), asOf, TimeSpan.FromHours(24));
+
+        Assert.Equal("KES", result.Features["currency"]);
+        Assert.Equal(2, Convert.ToInt32(result.Features["transaction_count_24h"]));
+        Assert.Equal(50_000m, Convert.ToDecimal(result.Features["transaction_sum_24h"]));
+        Assert.Equal(50_000m, Convert.ToDecimal(result.Features["transaction_sum"]));
+        Assert.DoesNotContain(txs[0].Id.ToString(), result.TransactionIds);
+    }
 
     [Fact]
     public async Task Features_for_seven_95k_match_thresholds()

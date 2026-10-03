@@ -61,11 +61,6 @@ public sealed class CanonicalTransaction : AggregateRoot
             throw new ArgumentException("External reference is required.", nameof(externalReference));
         }
 
-        if (!string.Equals(amount.Currency, "KES", StringComparison.Ordinal))
-        {
-            throw new ArgumentException("This slice only supports KES amounts.", nameof(amount));
-        }
-
         var skew = TimeSpan.FromMinutes(5);
         if (timestamp > DateTimeOffset.UtcNow.Add(skew))
         {

@@ -9,8 +9,17 @@ using Aegis.Modules.Transactions.Application;
 using Aegis.Modules.Transactions.Domain;
 using Aegis.Shared.Domain;
 
+/// <summary>
+/// Customer features as of a transaction. Aggregates only include transactions in the triggering
+/// transaction's currency, so thresholds never add amounts across currencies.
+/// Fixed-name features (<c>_24h</c>, <c>_1h</c>) keep their windows; generic names
+/// (<c>transaction_count</c>, <c>transaction_sum</c>, ...) cover the requested window.
+/// </summary>
 public sealed class FeatureCalculator : IFeatureCalculator
 {
+    private static readonly TimeSpan Day = TimeSpan.FromHours(24);
+    private static readonly TimeSpan Hour = TimeSpan.FromHours(1);
+
     private readonly ITransactionReadPort _transactions;
 
     public FeatureCalculator(ITransactionReadPort transactions) => _transactions = transactions;
@@ -33,54 +42,73 @@ public sealed class FeatureCalculator : IFeatureCalculator
             throw new ArgumentException("focusEntityId must be a customer GUID.", nameof(focusEntityId));
         }
 
-        var customerId = new CustomerId(customerGuid);
-        // Load the wider of requested window and 24h so we can compute both structuring and rapid features.
-        var loadWindow = window > TimeSpan.FromHours(24) ? window : TimeSpan.FromHours(24);
+        if (window <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(window), "Window must be positive.");
+        }
+
+        var loadWindow = window > Day ? window : Day;
         var loadStart = asOfTimestamp - loadWindow;
-        var txs = await _transactions.GetForCustomerWindowAsync(
+        var loaded = await _transactions.GetForCustomerWindowAsync(
             tenantId,
-            customerId,
+            new CustomerId(customerGuid),
             loadStart,
             asOfTimestamp.AddTicks(1),
             cancellationToken);
 
-        txs = txs.Where(t => t.Timestamp >= loadStart && t.Timestamp <= asOfTimestamp).ToList();
+        loaded = loaded.Where(t => t.Timestamp >= loadStart && t.Timestamp <= asOfTimestamp).ToList();
 
-        var window24Start = asOfTimestamp - TimeSpan.FromHours(24);
-        var txs24 = txs.Where(t => t.Timestamp >= window24Start).ToList();
-        var count = txs24.Count;
-        var sum = txs24.Sum(t => t.Amount.Amount);
-        var max = txs24.Count == 0 ? 0m : txs24.Max(t => t.Amount.Amount);
+        var triggering = loaded.FirstOrDefault(t => t.Timestamp == asOfTimestamp)
+                         ?? loaded.OrderByDescending(t => t.Timestamp).FirstOrDefault();
+        var currency = triggering?.Amount.Currency ?? "";
+        var txs = loaded.Where(t => t.Amount.Currency == currency).ToList();
 
-        var window1Start = asOfTimestamp - TimeSpan.FromHours(1);
-        var txs1h = txs.Where(t => t.Timestamp >= window1Start).ToList();
-        var creditSum1h = txs1h.Where(t => t.Direction == TransactionDirection.CREDIT).Sum(t => t.Amount.Amount);
-        var debitSum1h = txs1h.Where(t => t.Direction == TransactionDirection.DEBIT).Sum(t => t.Amount.Amount);
-        var passThrough = creditSum1h <= 0 ? 0m : Math.Min(1m, debitSum1h / creditSum1h);
+        var day = Since(txs, asOfTimestamp - Day);
+        var hour = Since(txs, asOfTimestamp - Hour);
+        var windowed = Since(txs, asOfTimestamp - window);
 
-        var triggering = txs.FirstOrDefault(t => t.Timestamp == asOfTimestamp)
-                         ?? txs.OrderByDescending(t => t.Timestamp).FirstOrDefault();
-        var counterpartyCountry = triggering?.CounterpartyCountry?.Trim().ToUpperInvariant() ?? "";
-        var transactionAmount = triggering?.Amount.Amount ?? 0m;
+        var features = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["currency"] = currency,
+            ["counterparty_country"] = triggering?.CounterpartyCountry?.Trim().ToUpperInvariant() ?? "",
+            ["transaction_amount"] = triggering?.Amount.Amount ?? 0m
+        };
+        AddAggregates(features, day, "_24h", includeFlow: false);
+        AddAggregates(features, hour, "_1h", includeFlow: true, includeTotals: false);
+        AddAggregates(features, windowed, "", includeFlow: true);
 
-        var ids = txs24.Select(t => t.Id.ToString()).ToList();
+        var ids = windowed.Select(t => t.Id.ToString()).ToList();
         if (triggering is not null && !ids.Contains(triggering.Id.ToString()))
         {
             ids.Add(triggering.Id.ToString());
         }
 
-        var features = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["transaction_count_24h"] = count,
-            ["transaction_sum_24h"] = sum,
-            ["max_single_amount_24h"] = max,
-            ["credit_sum_1h"] = creditSum1h,
-            ["debit_sum_1h"] = debitSum1h,
-            ["pass_through_ratio_1h"] = passThrough,
-            ["counterparty_country"] = counterpartyCountry,
-            ["transaction_amount"] = transactionAmount
-        };
-
         return new FeatureCalculationResult(features, ids);
+    }
+
+    private static List<CanonicalTransaction> Since(IEnumerable<CanonicalTransaction> txs, DateTimeOffset start)
+        => txs.Where(t => t.Timestamp >= start).ToList();
+
+    private static void AddAggregates(
+        IDictionary<string, object> features,
+        IReadOnlyList<CanonicalTransaction> txs,
+        string suffix,
+        bool includeFlow,
+        bool includeTotals = true)
+    {
+        if (includeTotals)
+        {
+            features[$"transaction_count{suffix}"] = txs.Count;
+            features[$"transaction_sum{suffix}"] = txs.Sum(t => t.Amount.Amount);
+            features[$"max_single_amount{suffix}"] = txs.Count == 0 ? 0m : txs.Max(t => t.Amount.Amount);
+        }
+
+        if (!includeFlow) return;
+
+        var credit = txs.Where(t => t.Direction == TransactionDirection.CREDIT).Sum(t => t.Amount.Amount);
+        var debit = txs.Where(t => t.Direction == TransactionDirection.DEBIT).Sum(t => t.Amount.Amount);
+        features[$"credit_sum{suffix}"] = credit;
+        features[$"debit_sum{suffix}"] = debit;
+        features[$"pass_through_ratio{suffix}"] = credit <= 0 ? 0m : Math.Min(1m, debit / credit);
     }
 }

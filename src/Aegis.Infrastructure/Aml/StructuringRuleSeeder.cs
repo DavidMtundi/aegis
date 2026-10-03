@@ -10,6 +10,9 @@ public sealed class StructuringRuleSeeder : IStructuringRuleSeeder
     public const string RapidMovementCode = "RAPID_MOVEMENT_001";
     public const string HighRiskGeographyCode = "HIGH_RISK_GEOGRAPHY_001";
 
+    /// <summary>Seeded thresholds are KES amounts; other currencies need their own rule versions.</summary>
+    public const string SeedCurrency = "KES";
+
     private readonly IAmlRuleRepository _rules;
     private readonly IAmlRuleVersionRepository _versions;
 
@@ -43,6 +46,7 @@ public sealed class StructuringRuleSeeder : IStructuringRuleSeeder
             {
                 All = new List<RuleCondition>
                 {
+                    new() { Field = "currency", Operator = "IN", Values = new List<object> { SeedCurrency } },
                     new() { Field = "transaction_count_24h", Operator = ">=", Value = 5 },
                     new() { Field = "transaction_sum_24h", Operator = ">=", Value = 450000m },
                     new() { Field = "max_single_amount_24h", Operator = "<", Value = 100000m }
@@ -82,6 +86,7 @@ public sealed class StructuringRuleSeeder : IStructuringRuleSeeder
             {
                 All = new List<RuleCondition>
                 {
+                    new() { Field = "currency", Operator = "IN", Values = new List<object> { SeedCurrency } },
                     new() { Field = "credit_sum_1h", Operator = ">=", Value = 50_000m },
                     new() { Field = "debit_sum_1h", Operator = ">=", Value = 45_000m },
                     new() { Field = "pass_through_ratio_1h", Operator = ">=", Value = 0.9m }
@@ -127,6 +132,7 @@ public sealed class StructuringRuleSeeder : IStructuringRuleSeeder
                         Operator = "IN",
                         Values = new List<object> { "KP", "IR", "SY" }
                     },
+                    new() { Field = "currency", Operator = "IN", Values = new List<object> { SeedCurrency } },
                     new() { Field = "transaction_amount", Operator = ">=", Value = 10_000m }
                 }
             },

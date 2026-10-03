@@ -103,6 +103,19 @@ public class RuleDefinitionValidatorTests
         Assert.Empty(result.Errors);
     }
 
+    [Theory]
+    [InlineData("91d")]
+    [InlineData("0h")]
+    [InlineData("1w")]
+    public void Validate_LookbackOutOfRangeOrMalformed_ReturnsError(string lookback)
+    {
+        var def = CreateValidDefinition() with { Schedule = new RuleSchedule { Frequency = "realtime", Lookback = lookback } };
+
+        var result = _sut.Validate(def);
+
+        Assert.Contains(result.Errors, e => e.Contains("Lookback"));
+    }
+
     // ── Helper ────────────────────────────────────────────────────────────────
 
     private static RuleDefinition CreateValidDefinition() => new()

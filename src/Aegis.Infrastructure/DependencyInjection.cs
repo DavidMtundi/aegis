@@ -56,7 +56,7 @@ public static class DependencyInjection
         services.AddSingleton<ExclusionEvaluator>();
         services.AddSingleton<RuleDefinitionValidator>();
         services.AddSingleton<IRuleEvaluationEngine, RuleEvaluationEngine>();
-        services.AddScoped<IIngestAndEvaluateStructuring, IngestAndEvaluateStructuring>();
+        services.AddScoped<IIngestAndEvaluateRules, IngestAndEvaluateRules>();
         services.AddScoped<ITransactionBatchIngestor, Transactions.TransactionBatchIngestor>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<PasswordHasher>();

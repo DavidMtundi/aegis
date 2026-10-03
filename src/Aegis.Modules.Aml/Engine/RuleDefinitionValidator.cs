@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Aegis.Modules.Aml.Domain;
+using Aegis.Shared.Domain;
 
 namespace Aegis.Modules.Aml.Engine;
 
@@ -46,8 +47,10 @@ public sealed class RuleDefinitionValidator
                 && !string.Equals(definition.Schedule.Frequency, "realtime", StringComparison.OrdinalIgnoreCase))
                 errors.Add($"Schedule.Frequency '{definition.Schedule.Frequency}' is invalid. Expected format: '7d', '24h', '30m', or 'realtime'.");
 
-            if (!IsValidDuration(definition.Schedule.Lookback))
+            if (!RuleDuration.TryParse(definition.Schedule.Lookback, out var lookback))
                 errors.Add($"Schedule.Lookback '{definition.Schedule.Lookback}' is invalid. Expected format: '14d', '24h', '30m'.");
+            else if (lookback > RuleDuration.MaxLookback)
+                errors.Add($"Schedule.Lookback must be at most {RuleDuration.MaxLookback.TotalDays:0} days.");
         }
 
         // ── Conditions ────────────────────────────────────────────────────────

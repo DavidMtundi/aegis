@@ -27,7 +27,7 @@ public sealed record IngestTransactionPayload(
     string? CounterpartyCountry,
     IDictionary<string, string>? Metadata);
 
-public sealed record IngestAndEvaluateStructuringCommand(
+public sealed record IngestAndEvaluateRulesCommand(
     TenantId TenantId,
     Guid ActorId,
     string? ActorRole,
@@ -43,26 +43,25 @@ public sealed record EvaluationSummary(
     IReadOnlyDictionary<string, object> Features,
     IReadOnlyList<string> TransactionIds);
 
-public sealed record IngestAndEvaluateStructuringResult(
+public sealed record IngestAndEvaluateRulesResult(
     Guid TransactionId,
     bool WasCreated,
     IReadOnlyList<EvaluationSummary> Evaluations,
     IReadOnlyList<Guid> AlertIds);
 
-public interface IIngestAndEvaluateStructuring
+public interface IIngestAndEvaluateRules
 {
-    Task<IngestAndEvaluateStructuringResult> ExecuteAsync(
-        IngestAndEvaluateStructuringCommand command,
+    Task<IngestAndEvaluateRulesResult> ExecuteAsync(
+        IngestAndEvaluateRulesCommand command,
         CancellationToken cancellationToken = default);
 }
 
-public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
+public sealed class IngestAndEvaluateRules : IIngestAndEvaluateRules
 {
     private readonly ITransactionRepository _transactions;
     private readonly ICustomerRepository _customers;
     private readonly IAccountRepository _accounts;
     private readonly IFeatureCalculator _features;
-    private readonly IStructuringRuleSeeder _seeder;
     private readonly IAmlRuleVersionRepository _ruleVersions;
     private readonly IRuleEvaluationEngine _engine;
     private readonly IAlertService _alerts;
@@ -70,12 +69,11 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
     private readonly IAuditWriter _audit;
     private readonly IUnitOfWork _uow;
 
-    public IngestAndEvaluateStructuring(
+    public IngestAndEvaluateRules(
         ITransactionRepository transactions,
         ICustomerRepository customers,
         IAccountRepository accounts,
         IFeatureCalculator features,
-        IStructuringRuleSeeder seeder,
         IAmlRuleVersionRepository ruleVersions,
         IRuleEvaluationEngine engine,
         IAlertService alerts,
@@ -87,7 +85,6 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
         _customers = customers;
         _accounts = accounts;
         _features = features;
-        _seeder = seeder;
         _ruleVersions = ruleVersions;
         _engine = engine;
         _alerts = alerts;
@@ -96,8 +93,8 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
         _uow = uow;
     }
 
-    public async Task<IngestAndEvaluateStructuringResult> ExecuteAsync(
-        IngestAndEvaluateStructuringCommand command,
+    public async Task<IngestAndEvaluateRulesResult> ExecuteAsync(
+        IngestAndEvaluateRulesCommand command,
         CancellationToken cancellationToken = default)
     {
         var payload = command.Payload;
@@ -105,7 +102,7 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
             command.TenantId, payload.ExternalReference, cancellationToken);
         if (existing is not null)
         {
-            return new IngestAndEvaluateStructuringResult(
+            return new IngestAndEvaluateRulesResult(
                 existing.Id,
                 WasCreated: false,
                 Evaluations: Array.Empty<EvaluationSummary>(),
@@ -129,6 +126,9 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
             throw new ArgumentException("Invalid Channel.");
 
         var money = new Money(payload.Amount, payload.Currency.Trim().ToUpperInvariant());
+        if (money.Currency != account.Currency)
+            throw new InvalidOperationException(
+                $"Transaction currency {money.Currency} does not match account currency {account.Currency}.");
         var tx = CanonicalTransaction.Ingest(
             command.TenantId,
             payload.ExternalReference,
@@ -155,24 +155,28 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
             "Transaction ingested",
             command.CorrelationId), cancellationToken);
 
-        await _seeder.EnsureSeededAsync(command.TenantId, cancellationToken);
-
-        var calculated = await _features.CalculateAsync(
-            command.TenantId,
-            FocusType.CUSTOMER,
-            customer.Id.ToString(),
-            asOfTimestamp: tx.Timestamp,
-            window: TimeSpan.FromHours(24),
-            cancellationToken);
-
-        var featureContext = new DictionaryFeatureContext(calculated.Features.ToDictionary(k => k.Key, v => v.Value));
         var activeVersions = await _ruleVersions.GetActiveByTenantAsync(command.TenantId, cancellationToken);
 
         var evaluations = new List<EvaluationSummary>();
         var alertIds = new List<Guid>();
+        var featuresByWindow = new Dictionary<TimeSpan, FeatureCalculationResult>();
 
         foreach (var version in activeVersions)
         {
+            var window = LookbackOf(version.Definition);
+            if (!featuresByWindow.TryGetValue(window, out var calculated))
+            {
+                calculated = await _features.CalculateAsync(
+                    command.TenantId,
+                    FocusType.CUSTOMER,
+                    customer.Id.ToString(),
+                    asOfTimestamp: tx.Timestamp,
+                    window,
+                    cancellationToken);
+                featuresByWindow[window] = calculated;
+            }
+
+            var featureContext = new DictionaryFeatureContext(calculated.Features.ToDictionary(k => k.Key, v => v.Value));
             var result = await _engine.EvaluateAsync(
                 version,
                 featureContext,
@@ -242,7 +246,7 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
                 throw;
             }
 
-            return new IngestAndEvaluateStructuringResult(
+            return new IngestAndEvaluateRulesResult(
                 winner.Id,
                 WasCreated: false,
                 Evaluations: Array.Empty<EvaluationSummary>(),
@@ -267,23 +271,27 @@ public sealed class IngestAndEvaluateStructuring : IIngestAndEvaluateStructuring
                     recovered.Add(existingAlert.Id);
             }
 
-            return new IngestAndEvaluateStructuringResult(
+            return new IngestAndEvaluateRulesResult(
                 tx.Id,
                 WasCreated: true,
                 evaluations,
                 recovered.Count > 0 ? recovered : alertIds);
         }
 
-        return new IngestAndEvaluateStructuringResult(
+        return new IngestAndEvaluateRulesResult(
             tx.Id,
             WasCreated: true,
             evaluations,
             alertIds);
     }
-}
 
-/// <summary>Avoid Infrastructure dependency from Application for the constant.</summary>
-public static class StructuringRuleSeederCode
-{
-    public const string Code = "STRUCTURING_001";
+    /// <summary>Rule lookback, capped; falls back to 24h for versions saved before lookback was enforced.</summary>
+    private static TimeSpan LookbackOf(RuleDefinition definition)
+    {
+        if (!RuleDuration.TryParse(definition.Schedule?.Lookback, out var lookback))
+            return DefaultLookback;
+        return lookback > RuleDuration.MaxLookback ? RuleDuration.MaxLookback : lookback;
+    }
+
+    private static readonly TimeSpan DefaultLookback = TimeSpan.FromHours(24);
 }

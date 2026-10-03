@@ -44,10 +44,10 @@ public sealed class TransactionBatchIngestor : ITransactionBatchIngestor
         tenant.Roles = command.ActorRoles;
         tenant.IsAuthenticated = true;
 
-        var ingest = scope.ServiceProvider.GetRequiredService<IIngestAndEvaluateStructuring>();
+        var ingest = scope.ServiceProvider.GetRequiredService<IIngestAndEvaluateRules>();
         try
         {
-            var result = await ingest.ExecuteAsync(new IngestAndEvaluateStructuringCommand(
+            var result = await ingest.ExecuteAsync(new IngestAndEvaluateRulesCommand(
                 command.TenantId,
                 command.ActorId,
                 command.ActorRoles.FirstOrDefault(),

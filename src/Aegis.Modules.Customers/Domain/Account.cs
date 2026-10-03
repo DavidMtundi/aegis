@@ -22,9 +22,10 @@ public sealed class Account : AggregateRoot
         AccountType accountType,
         string currency)
     {
-        if (!string.Equals(currency, "KES", StringComparison.OrdinalIgnoreCase))
+        var code = currency?.Trim().ToUpperInvariant() ?? "";
+        if (code.Length != 3 || !code.All(c => c is >= 'A' and <= 'Z'))
         {
-            throw new ArgumentException("This slice only supports KES accounts.", nameof(currency));
+            throw new ArgumentException("Currency must be a 3-letter ISO 4217 code.", nameof(currency));
         }
 
         var id = Guid.NewGuid();
@@ -36,7 +37,7 @@ public sealed class Account : AggregateRoot
             CustomerId = customerId,
             ExternalReference = externalReference,
             AccountType = accountType,
-            Currency = "KES",
+            Currency = code,
             Status = AccountStatus.ACTIVE,
             OpenedAt = DateTimeOffset.UtcNow,
             CreatedAt = DateTimeOffset.UtcNow,

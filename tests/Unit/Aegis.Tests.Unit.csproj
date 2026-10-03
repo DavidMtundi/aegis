@@ -28,6 +28,7 @@
     <ProjectReference Include="..\..\src\Aegis.Modules.Transactions\Aegis.Modules.Transactions.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Shared\Aegis.Shared.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Application\Aegis.Application.csproj" />
+    <ProjectReference Include="..\..\src\Aegis.Modules.Customers\Aegis.Modules.Customers.csproj" />
   </ItemGroup>
 
 </Project>
