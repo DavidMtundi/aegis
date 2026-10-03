@@ -2,6 +2,7 @@ namespace Aegis.Api.Controllers;
 
 using Aegis.Api.Authorization;
 using Aegis.Application.Cases;
+using Aegis.Application.Lookups;
 using Aegis.Modules.Alerts.Application;
 using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Audit.Domain;
@@ -28,6 +29,7 @@ public sealed class CasesController : ControllerBase
     private readonly ITenantContext _tenant;
     private readonly IAuditWriter _audit;
     private readonly IUnitOfWork _uow;
+    private readonly IDisplayNameLookup _names;
 
     public CasesController(
         ICaseRepository cases,
@@ -36,8 +38,10 @@ public sealed class CasesController : ControllerBase
         IAuditEventRepository auditEvents,
         ITenantContext tenant,
         IAuditWriter audit,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        IDisplayNameLookup names)
     {
+        _names = names;
         _cases = cases;
         _alerts = alerts;
         _users = users;
@@ -61,7 +65,10 @@ public sealed class CasesController : ControllerBase
         string? Disposition,
         string? Conclusion,
         IReadOnlyList<Guid> LinkedAlertIds,
-        IReadOnlyList<CaseNoteResponse> Notes);
+        IReadOnlyList<CaseNoteResponse> Notes,
+        string? CustomerName,
+        string? AssigneeName,
+        IReadOnlyList<AlertLabel> LinkedAlerts);
 
     public sealed record CaseListResponse(
         IReadOnlyList<CaseResponse> Items,
@@ -85,7 +92,7 @@ public sealed class CasesController : ControllerBase
         if (!_tenant.IsAuthenticated) return Unauthorized();
         var result = await _cases.ListByTenantAsync(_tenant.TenantId, new CaseListQuery(page, pageSize), ct);
         return Ok(new CaseListResponse(
-            result.Items.Select(ToResponse).ToList(),
+            await ToResponsesAsync(_names, _tenant.TenantId, result.Items, ct),
             result.Page,
             result.PageSize,
             result.TotalCount));
@@ -97,7 +104,7 @@ public sealed class CasesController : ControllerBase
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
         var c = await _cases.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
-        return c is null ? NotFound() : Ok(ToResponse(c));
+        return c is null ? NotFound() : Ok(await ToResponseAsync(_names, _tenant.TenantId, c, ct));
     }
 
     [HttpPost("{id:guid}/assign")]
@@ -117,7 +124,7 @@ public sealed class CasesController : ControllerBase
         await AppendAuditAsync(c, AuditEventTypes.CASE_ASSIGNED,
             AuditPayload.Json(new { assignedTo = c.AssignedTo, assigneeEmail = assignee.Email }), "Case assigned", ct);
         await _uow.SaveChangesAsync(ct);
-        return Ok(ToResponse(c));
+        return Ok(await ToResponseAsync(_names, _tenant.TenantId, c, ct));
     }
 
     [HttpPost("{id:guid}/alerts")]
@@ -138,7 +145,7 @@ public sealed class CasesController : ControllerBase
                 AuditPayload.Json(new { alertId = alert.Id }), "Alert linked to case", ct);
             await _uow.SaveChangesAsync(ct);
         }
-        return Ok(ToResponse(c));
+        return Ok(await ToResponseAsync(_names, _tenant.TenantId, c, ct));
     }
 
     [HttpPost("{id:guid}/escalate")]
@@ -158,7 +165,7 @@ public sealed class CasesController : ControllerBase
         await AppendAuditAsync(c, AuditEventTypes.CASE_ESCALATED,
             AuditPayload.Json(new { reason = request?.Reason?.Trim() }), "Case escalated", ct);
         await _uow.SaveChangesAsync(ct);
-        return Ok(ToResponse(c));
+        return Ok(await ToResponseAsync(_names, _tenant.TenantId, c, ct));
     }
 
     [HttpGet("{id:guid}/timeline")]
@@ -203,7 +210,7 @@ public sealed class CasesController : ControllerBase
         await AppendAuditAsync(c, AuditEventTypes.CASE_NOTE_ADDED,
             AuditPayload.Json(new { noteId = c.Notes[^1].Id }), "Case note added", ct);
         await _uow.SaveChangesAsync(ct);
-        return Ok(ToResponse(c));
+        return Ok(await ToResponseAsync(_names, _tenant.TenantId, c, ct));
     }
 
     [HttpPost("{id:guid}/close")]
@@ -234,10 +241,28 @@ public sealed class CasesController : ControllerBase
             request.Conclusion.Trim(),
             HttpContext.TraceIdentifier), ct);
         await _uow.SaveChangesAsync(ct);
-        return Ok(ToResponse(c));
+        return Ok(await ToResponseAsync(_names, _tenant.TenantId, c, ct));
     }
 
-    internal static CaseResponse ToResponse(ComplianceCase c) => new(
+    internal static async Task<CaseResponse> ToResponseAsync(
+        IDisplayNameLookup names, TenantId tenantId, ComplianceCase c, CancellationToken ct)
+        => (await ToResponsesAsync(names, tenantId, new[] { c }, ct))[0];
+
+    internal static async Task<IReadOnlyList<CaseResponse>> ToResponsesAsync(
+        IDisplayNameLookup names, TenantId tenantId, IReadOnlyList<ComplianceCase> cases, CancellationToken ct)
+    {
+        var customers = await names.CustomersAsync(tenantId, cases.Where(c => c.CustomerId.HasValue).Select(c => c.CustomerId!.Value), ct);
+        var users = await names.UserNamesAsync(tenantId, DisplayIds.Parse(cases.Select(c => c.AssignedTo)), ct);
+        var alerts = await names.AlertsAsync(tenantId, cases.SelectMany(c => c.LinkedAlertIds), ct);
+        return cases.Select(c => ToResponse(
+            c,
+            c.CustomerId is Guid customerId && customers.TryGetValue(customerId, out var customer) ? customer.Name : null,
+            DisplayIds.Find(users, c.AssignedTo),
+            c.LinkedAlertIds.Where(alerts.ContainsKey).Select(id => alerts[id]).ToList())).ToList();
+    }
+
+    private static CaseResponse ToResponse(
+        ComplianceCase c, string? customerName, string? assigneeName, IReadOnlyList<AlertLabel> linkedAlerts) => new(
         c.Id,
         c.CustomerId,
         c.Title,
@@ -249,5 +274,8 @@ public sealed class CasesController : ControllerBase
         c.Disposition?.ToString(),
         c.Conclusion,
         c.LinkedAlertIds.ToList(),
-        c.Notes.Select(n => new CaseNoteResponse(n.Id, n.Text, n.AuthorId, n.CreatedAt)).ToList());
+        c.Notes.Select(n => new CaseNoteResponse(n.Id, n.Text, n.AuthorId, n.CreatedAt)).ToList(),
+        customerName,
+        assigneeName,
+        linkedAlerts);
 }

@@ -1,6 +1,7 @@
 namespace Aegis.Api.Controllers;
 
 using Aegis.Api.Authorization;
+using Aegis.Application.Lookups;
 using Aegis.Application.Transactions;
 using Aegis.Modules.Transactions.Application;
 using Aegis.Shared.Security;
@@ -16,13 +17,16 @@ public sealed class TransactionsController : ControllerBase
     private readonly ITransactionBatchIngestor _batch;
     private readonly ITransactionRepository _transactions;
     private readonly ITenantContext _tenant;
+    private readonly IDisplayNameLookup _names;
 
     public TransactionsController(
         IIngestAndEvaluateRules ingest,
         ITransactionBatchIngestor batch,
         ITransactionRepository transactions,
-        ITenantContext tenant)
+        ITenantContext tenant,
+        IDisplayNameLookup names)
     {
+        _names = names;
         _ingest = ingest;
         _batch = batch;
         _transactions = transactions;
@@ -197,9 +201,10 @@ public sealed class TransactionsController : ControllerBase
             _tenant.TenantId,
             new TransactionListQuery(customerId, from, to, page, pageSize),
             ct);
+        var customers = await _names.CustomersAsync(_tenant.TenantId, result.Items.Select(t => t.CustomerId.Value), ct);
         return Ok(new
         {
-            items = result.Items.Select(ToTransactionResponse).ToList(),
+            items = result.Items.Select(t => ToTransactionResponse(t, customers.GetValueOrDefault(t.CustomerId.Value)?.Name)).ToList(),
             page = result.Page,
             pageSize = result.PageSize,
             totalCount = result.TotalCount
@@ -212,15 +217,18 @@ public sealed class TransactionsController : ControllerBase
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
         var tx = await _transactions.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
-        return tx is null ? NotFound() : Ok(ToTransactionResponse(tx));
+        if (tx is null) return NotFound();
+        var customers = await _names.CustomersAsync(_tenant.TenantId, new[] { tx.CustomerId.Value }, ct);
+        return Ok(ToTransactionResponse(tx, customers.GetValueOrDefault(tx.CustomerId.Value)?.Name));
     }
 
-    internal static object ToTransactionResponse(Modules.Transactions.Domain.CanonicalTransaction tx) => new
+    internal static object ToTransactionResponse(Modules.Transactions.Domain.CanonicalTransaction tx, string? customerName) => new
     {
         id = tx.Id,
         externalReference = tx.ExternalReference,
         accountId = tx.AccountId.Value,
         customerId = tx.CustomerId.Value,
+        customerName,
         amount = tx.Amount.Amount,
         currency = tx.Amount.Currency,
         direction = tx.Direction.ToString(),

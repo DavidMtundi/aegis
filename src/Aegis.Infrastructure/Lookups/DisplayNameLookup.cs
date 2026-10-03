@@ -41,4 +41,34 @@ public sealed class DisplayNameLookup : IDisplayNameLookup
             .Where(u => u.TenantId == tenantId && ids.Contains(u.Id))
             .ToDictionaryAsync(u => u.Id, u => u.Name, cancellationToken);
     }
+
+    public async Task<IReadOnlyDictionary<Guid, AlertLabel>> AlertsAsync(
+        TenantId tenantId, IEnumerable<Guid> alertIds, CancellationToken cancellationToken = default)
+    {
+        var ids = alertIds.Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<Guid, AlertLabel>();
+
+        var alerts = await _db.Alerts.AsNoTracking()
+            .Where(a => a.TenantId == tenantId && ids.Contains(a.Id))
+            .ToListAsync(cancellationToken);
+
+        return alerts.ToDictionary(
+            a => a.Id,
+            a => new AlertLabel(a.Id, a.Evidence.RuleName, a.Severity.ToString(), a.Status.ToString()));
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, string>> RiskBandsAsync(
+        TenantId tenantId, IEnumerable<Guid> customerIds, CancellationToken cancellationToken = default)
+    {
+        var ids = customerIds.Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<Guid, string>();
+
+        var latest = await _db.CustomerRiskScores.AsNoTracking()
+            .Where(s => s.TenantId == tenantId && ids.Contains(s.CustomerId))
+            .GroupBy(s => s.CustomerId)
+            .Select(g => g.OrderByDescending(s => s.CalculatedAt).Select(s => new { s.CustomerId, s.Band }).First())
+            .ToListAsync(cancellationToken);
+
+        return latest.ToDictionary(x => x.CustomerId, x => x.Band.ToString());
+    }
 }

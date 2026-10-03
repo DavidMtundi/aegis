@@ -4,6 +4,8 @@ using Aegis.Shared.Domain;
 
 public sealed record CustomerLabel(Guid Id, string Name, string Country, string Type);
 
+public sealed record AlertLabel(Guid Id, string RuleName, string Severity, string Status);
+
 /// <summary>Batch resolution of ids to display labels so list responses avoid one query per row.</summary>
 public interface IDisplayNameLookup
 {
@@ -12,6 +14,13 @@ public interface IDisplayNameLookup
 
     Task<IReadOnlyDictionary<Guid, string>> UserNamesAsync(
         TenantId tenantId, IEnumerable<Guid> userIds, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyDictionary<Guid, AlertLabel>> AlertsAsync(
+        TenantId tenantId, IEnumerable<Guid> alertIds, CancellationToken cancellationToken = default);
+
+    /// <summary>Band of each customer's most recent risk score; unscored customers are absent.</summary>
+    Task<IReadOnlyDictionary<Guid, string>> RiskBandsAsync(
+        TenantId tenantId, IEnumerable<Guid> customerIds, CancellationToken cancellationToken = default);
 }
 
 public static class DisplayIds

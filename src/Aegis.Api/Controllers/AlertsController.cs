@@ -284,7 +284,7 @@ public sealed class AlertsController : ControllerBase
             HttpContext.TraceIdentifier), ct);
         await _uow.SaveChangesAsync(ct);
 
-        return Created($"/api/v1/cases/{complianceCase.Id}", CasesController.ToResponse(complianceCase));
+        return Created($"/api/v1/cases/{complianceCase.Id}", await CasesController.ToResponseAsync(_names, _tenant.TenantId, complianceCase, ct));
     }
 
     private async Task<AlertResponse> ToResponseAsync(Alert alert, CancellationToken ct)

@@ -1,6 +1,7 @@
 namespace Aegis.Api.Controllers;
 
 using Aegis.Api.Authorization;
+using Aegis.Application.Lookups;
 using Aegis.Application.Risk;
 using Aegis.Modules.Alerts.Application;
 using Aegis.Modules.Alerts.Domain;
@@ -35,6 +36,7 @@ public sealed class CustomersController : ControllerBase
     private readonly IAuditWriter _audit;
     private readonly IUnitOfWork _uow;
     private readonly ICustomerRiskService _risk;
+    private readonly IDisplayNameLookup _names;
 
     public CustomersController(
         ICustomerRepository customers,
@@ -45,8 +47,10 @@ public sealed class CustomersController : ControllerBase
         ITenantContext tenant,
         IAuditWriter audit,
         IUnitOfWork uow,
-        ICustomerRiskService risk)
+        ICustomerRiskService risk,
+        IDisplayNameLookup names)
     {
+        _names = names;
         _risk = risk;
         _customers = customers;
         _accounts = accounts;
@@ -121,7 +125,9 @@ public sealed class CustomersController : ControllerBase
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
         var customer = await _customers.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
-        return customer is null ? NotFound() : Ok(ToCustomerResponse(customer));
+        if (customer is null) return NotFound();
+        var bands = await _names.RiskBandsAsync(_tenant.TenantId, new[] { customer.Id }, ct);
+        return Ok(ToCustomerResponse(customer, bands.GetValueOrDefault(customer.Id)));
     }
 
     [HttpGet("{id:guid}/overview")]
@@ -147,9 +153,13 @@ public sealed class CustomersController : ControllerBase
         if (Can(Permissions.CaseRead))
             cases = await _cases.ListByCustomerAsync(_tenant.TenantId, id, OverviewTake, ct);
 
+        var bands = await _names.RiskBandsAsync(_tenant.TenantId, new[] { customer.Id }, ct);
+        var customerName = (await _names.CustomersAsync(_tenant.TenantId, new[] { customer.Id }, ct)).GetValueOrDefault(customer.Id)?.Name;
+        var caseResponses = cases is null ? null : await CasesController.ToResponsesAsync(_names, _tenant.TenantId, cases, ct);
+
         return Ok(new
         {
-            customer = ToCustomerResponse(customer),
+            customer = ToCustomerResponse(customer, bands.GetValueOrDefault(customer.Id)),
             accounts = accounts.Select(a => new
             {
                 id = a.Id,
@@ -159,7 +169,7 @@ public sealed class CustomersController : ControllerBase
                 externalReference = a.ExternalReference,
                 openedAt = a.OpenedAt
             }).ToList(),
-            recentTransactions = transactions?.Items.Select(TransactionsController.ToTransactionResponse).ToList(),
+            recentTransactions = transactions?.Items.Select(t => TransactionsController.ToTransactionResponse(t, customerName)).ToList(),
             alerts = alerts?.Select(a => new
             {
                 id = a.Id,
@@ -169,7 +179,7 @@ public sealed class CustomersController : ControllerBase
                 riskScore = a.RiskScore,
                 triggeredAt = a.TriggeredAt
             }).ToList(),
-            cases = cases?.Select(CasesController.ToResponse).ToList(),
+            cases = caseResponses,
             summary = new
             {
                 transactionCount = transactions?.TotalCount,
@@ -194,9 +204,10 @@ public sealed class CustomersController : ControllerBase
             _tenant.TenantId,
             new CustomerListQuery(q, page, pageSize),
             ct);
+        var bands = await _names.RiskBandsAsync(_tenant.TenantId, result.Items.Select(c => c.Id), ct);
         return Ok(new
         {
-            items = result.Items.Select(ToCustomerResponse).ToList(),
+            items = result.Items.Select(c => ToCustomerResponse(c, bands.GetValueOrDefault(c.Id))).ToList(),
             page = result.Page,
             pageSize = result.PageSize,
             totalCount = result.TotalCount
@@ -245,7 +256,7 @@ public sealed class CustomersController : ControllerBase
         }
     }
 
-    private static object ToCustomerResponse(Customer customer) => new
+    private static object ToCustomerResponse(Customer customer, string? riskBand) => new
     {
         id = customer.Id,
         type = customer.Type.ToString(),
@@ -254,6 +265,7 @@ public sealed class CustomersController : ControllerBase
         lastName = customer.LastName,
         legalName = customer.LegalName,
         status = customer.Status.ToString(),
-        externalReference = customer.ExternalReference
+        externalReference = customer.ExternalReference,
+        riskBand
     };
 }
