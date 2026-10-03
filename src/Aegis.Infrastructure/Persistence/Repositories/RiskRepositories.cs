@@ -3,6 +3,7 @@ namespace Aegis.Infrastructure.Persistence.Repositories;
 using Aegis.Application.Risk;
 using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Cases.Domain;
+using Aegis.Modules.Identity.Domain;
 using Aegis.Modules.Risk.Application;
 using Aegis.Modules.Risk.Domain;
 using Aegis.Shared.Domain;
@@ -97,5 +98,27 @@ public sealed class RiskInputsReader : IRiskInputsReader
         }
 
         return new RiskInputs(customer.Type.ToString(), customer.Country, alertFacts, suspiciousCases, transactionCounts, asOf);
+    }
+}
+
+public sealed class RiskBatchSource : IRiskBatchSource
+{
+    private readonly AegisDbContext _db;
+
+    public RiskBatchSource(AegisDbContext db) => _db = db;
+
+    public async Task<IReadOnlyList<Guid>> ListScorableTenantIdsAsync(CancellationToken cancellationToken = default)
+        => await _db.Tenants.AsNoTracking()
+            .Where(t => t.Status != TenantStatus.SUSPENDED)
+            .OrderBy(t => t.Id)
+            .Select(t => t.Id)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<Guid>> ListCustomerIdsAsync(
+        TenantId tenantId, Guid? afterId, int take, CancellationToken cancellationToken = default)
+    {
+        var query = _db.Customers.AsNoTracking().Where(c => c.TenantId == tenantId);
+        if (afterId is Guid after) query = query.Where(c => c.Id.CompareTo(after) > 0);
+        return await query.OrderBy(c => c.Id).Select(c => c.Id).Take(take).ToListAsync(cancellationToken);
     }
 }

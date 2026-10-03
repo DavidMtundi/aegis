@@ -56,6 +56,9 @@ public static class DependencyInjection
         services.AddScoped<ICustomerRiskScoreRepository, CustomerRiskScoreRepository>();
         services.AddScoped<IRiskInputsReader, RiskInputsReader>();
         services.AddScoped<ICustomerRiskService, CustomerRiskService>();
+        services.AddScoped<IRiskBatchSource, RiskBatchSource>();
+        services.AddScoped<IRiskBatchRecalculator, RiskBatchRecalculator>();
+        services.AddHostedService<Risk.NightlyRiskBatchService>();
         services.AddScoped<IFeatureCalculator, FeatureCalculator>();
         services.AddSingleton<ConditionEvaluator>();
         services.AddSingleton<ConditionGroupEvaluator>();

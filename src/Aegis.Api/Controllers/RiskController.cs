@@ -110,6 +110,17 @@ public sealed class RiskController : ControllerBase
         }
     }
 
+    public sealed record RecalculateAllResponse(int Recalculated);
+
+    [HttpPost("risk/recalculate-all")]
+    [RequirePermission(Permissions.RiskManage)]
+    public async Task<ActionResult<RecalculateAllResponse>> RecalculateAll(
+        [FromServices] IRiskBatchRecalculator batch, CancellationToken ct)
+    {
+        if (!_tenant.IsAuthenticated) return Unauthorized();
+        return new RecalculateAllResponse(await batch.RecalculateTenantAsync(_tenant.TenantId, Actor(), ct));
+    }
+
     [HttpGet("customers/{id:guid}/risk")]
     [RequirePermission(Permissions.CustomerRead)]
     public async Task<ActionResult<CustomerRiskResponse>> GetCustomerRisk(Guid id, CancellationToken ct)

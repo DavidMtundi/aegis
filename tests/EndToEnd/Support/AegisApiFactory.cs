@@ -21,7 +21,8 @@ public sealed class AegisApiFactory : WebApplicationFactory<Program>
                 ["Jwt:SigningKey"] = "dev-only-signing-key-change-me-32chars-min!!",
                 ["Jwt:Issuer"] = "aegis",
                 ["Jwt:Audience"] = "aegis-api",
-                ["Aegis:AllowDevBootstrap"] = "true"
+                ["Aegis:AllowDevBootstrap"] = "true",
+                ["Risk:NightlyBatch:Enabled"] = "false"
             });
         });
     }

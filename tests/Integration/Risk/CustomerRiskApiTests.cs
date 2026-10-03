@@ -3,8 +3,11 @@ namespace Aegis.Tests.Integration.Risk;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Aegis.Application.Risk;
+using Aegis.Shared.Domain;
 using Aegis.Shared.Security;
 using Aegis.Tests.Integration.Alerts;
+using Microsoft.Extensions.DependencyInjection;
 
 public sealed class CustomerRiskApiTests : IAsyncLifetime
 {
@@ -133,6 +136,54 @@ public sealed class CustomerRiskApiTests : IAsyncLifetime
 
         var model = await analyst.GetFromJsonAsync<JsonElement>("/api/v1/risk/model");
         Assert.Equal(1, model.GetProperty("version").GetInt32());
+    }
+
+    [Fact]
+    public async Task Recalculate_all_scores_every_customer_and_requires_risk_manage()
+    {
+        var second = await _fx.AdminClient.PostAsJsonAsync("/api/v1/customers", new
+        {
+            type = "BUSINESS", country = "KE", legalName = "Acme Ltd"
+        });
+        second.EnsureSuccessStatusCode();
+        var secondId = (await second.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var analyst = await _fx.CreateUserClientAsync($"analyst@{_fx.Slug}.test", new[] { RoleNames.Analyst });
+        Assert.Equal(HttpStatusCode.Forbidden, (await analyst.PostAsync("/api/v1/risk/recalculate-all", null)).StatusCode);
+
+        var response = await _fx.AdminClient.PostAsync("/api/v1/risk/recalculate-all", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(2, (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("recalculated").GetInt32());
+        foreach (var id in new[] { _fx.CustomerId, secondId })
+        {
+            var current = (await GetRiskAsync(id)).GetProperty("current");
+            Assert.Equal("BATCH", current.GetProperty("trigger").GetString());
+        }
+    }
+
+    [Fact]
+    public async Task Batch_source_pages_customers_by_id()
+    {
+        for (var i = 0; i < 2; i++)
+        {
+            (await _fx.AdminClient.PostAsJsonAsync("/api/v1/customers", new
+            {
+                type = "INDIVIDUAL", country = "KE", firstName = "Page", lastName = $"N{i}"
+            })).EnsureSuccessStatusCode();
+        }
+
+        await using var scope = _fx.Factory.Services.CreateAsyncScope();
+        var source = scope.ServiceProvider.GetRequiredService<IRiskBatchSource>();
+        var tenant = new TenantId(_fx.TenantId);
+
+        var all = await source.ListCustomerIdsAsync(tenant, null, 10);
+        var firstPage = await source.ListCustomerIdsAsync(tenant, null, 2);
+        var secondPage = await source.ListCustomerIdsAsync(tenant, firstPage[^1], 2);
+
+        Assert.Equal(3, all.Count);
+        Assert.Equal(all, firstPage.Concat(secondPage).ToList());
+        Assert.Contains(_fx.TenantId, await source.ListScorableTenantIdsAsync());
     }
 
     private async Task<JsonElement> GetRiskAsync(Guid customerId)
