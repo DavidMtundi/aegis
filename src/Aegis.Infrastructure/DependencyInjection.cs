@@ -2,6 +2,7 @@ namespace Aegis.Infrastructure;
 
 using System.Security.Claims;
 using System.Text;
+using Aegis.Application.Dashboard;
 using Aegis.Application.Risk;
 using Aegis.Application.Transactions;
 using Aegis.Infrastructure.Aml;
@@ -59,6 +60,15 @@ public static class DependencyInjection
         services.AddScoped<IRiskBatchSource, RiskBatchSource>();
         services.AddScoped<IRiskBatchRecalculator, RiskBatchRecalculator>();
         services.AddHostedService<Risk.NightlyRiskBatchService>();
+        services.AddSingleton(sp =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var defaults = new DashboardOptions();
+            return new DashboardOptions(
+                AlertSlaDays: config.GetValue("Dashboard:AlertSlaDays", defaults.AlertSlaDays),
+                CaseSlaDays: config.GetValue("Dashboard:CaseSlaDays", defaults.CaseSlaDays));
+        });
+        services.AddScoped<IDashboardQueries, Dashboard.DashboardQueries>();
         services.AddScoped<IFeatureCalculator, FeatureCalculator>();
         services.AddSingleton<ConditionEvaluator>();
         services.AddSingleton<ConditionGroupEvaluator>();
