@@ -12,7 +12,11 @@ public sealed record AlertListQuery(
     DateTimeOffset? From = null,
     DateTimeOffset? To = null,
     int Page = 1,
-    int PageSize = 50);
+    int PageSize = 50,
+    bool OpenOnly = false,
+    string? AssignedTo = null,
+    bool UnassignedOnly = false,
+    string? FocusEntityId = null);
 
 public sealed record AlertListResult(IReadOnlyList<Alert> Items, int TotalCount, int Page, int PageSize);
 

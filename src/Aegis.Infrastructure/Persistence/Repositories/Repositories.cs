@@ -379,6 +379,14 @@ public sealed class AlertRepository : IAlertRepository
             filtered = filtered.Where(a => a.TriggeredAt >= from);
         if (query.To is DateTimeOffset to)
             filtered = filtered.Where(a => a.TriggeredAt <= to);
+        if (query.OpenOnly)
+            filtered = filtered.Where(a => a.Status != AlertStatus.RESOLVED && a.Status != AlertStatus.DISMISSED && a.Status != AlertStatus.CLOSED);
+        if (query.AssignedTo is string assignee)
+            filtered = filtered.Where(a => a.AssignedTo == assignee);
+        if (query.UnassignedOnly)
+            filtered = filtered.Where(a => a.AssignedTo == null);
+        if (query.FocusEntityId is string focusId)
+            filtered = filtered.Where(a => a.FocusType == FocusType.CUSTOMER && a.FocusEntityId == focusId);
 
         var total = await filtered.CountAsync(cancellationToken);
         var items = await filtered

@@ -1,6 +1,8 @@
 namespace Aegis.Api.Controllers;
 
 using Aegis.Api.Authorization;
+using Aegis.Application.Dashboard;
+using Aegis.Application.Lookups;
 using Aegis.Modules.Alerts.Application;
 using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Audit.Application;
@@ -25,6 +27,8 @@ public sealed class AlertsController : ControllerBase
     private readonly ITenantContext _tenant;
     private readonly IAuditWriter _audit;
     private readonly IUnitOfWork _uow;
+    private readonly IDisplayNameLookup _names;
+    private readonly DashboardOptions _sla;
 
     public AlertsController(
         IAlertRepository alerts,
@@ -32,8 +36,12 @@ public sealed class AlertsController : ControllerBase
         IUserRepository users,
         ITenantContext tenant,
         IAuditWriter audit,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        IDisplayNameLookup names,
+        DashboardOptions sla)
     {
+        _names = names;
+        _sla = sla;
         _alerts = alerts;
         _cases = cases;
         _users = users;
@@ -61,7 +69,10 @@ public sealed class AlertsController : ControllerBase
         IReadOnlyDictionary<string, object> EvaluatedValues,
         IReadOnlyList<string> ConditionsSatisfied,
         IReadOnlyList<string> TransactionIds,
-        IReadOnlyDictionary<string, object> AdditionalContext);
+        IReadOnlyDictionary<string, object> AdditionalContext,
+        string? CustomerName,
+        string? CustomerCountry,
+        string? AssigneeName);
 
     public sealed record AlertListResponse(
         IReadOnlyList<AlertResponse> Items,
@@ -81,6 +92,8 @@ public sealed class AlertsController : ControllerBase
         [FromQuery] string? severity,
         [FromQuery] DateTimeOffset? from,
         [FromQuery] DateTimeOffset? to,
+        [FromQuery] string? view,
+        [FromQuery] Guid? customerId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
@@ -103,13 +116,33 @@ public sealed class AlertsController : ControllerBase
             severityFilter = parsedSeverity;
         }
 
-        var result = await _alerts.ListByTenantAsync(
-            _tenant.TenantId,
-            new AlertListQuery(statusFilter, severityFilter, from, to, page, pageSize),
-            ct);
+        var query = new AlertListQuery(statusFilter, severityFilter, from, to, page, pageSize,
+            FocusEntityId: customerId?.ToString());
+        switch (view?.Trim().ToLowerInvariant())
+        {
+            case null or "" or "all":
+                break;
+            case "open":
+                query = query with { OpenOnly = true };
+                break;
+            case "mine":
+                query = query with { OpenOnly = true, AssignedTo = _tenant.UserId.ToString() };
+                break;
+            case "unassigned":
+                query = query with { OpenOnly = true, UnassignedOnly = true };
+                break;
+            case "pastsla":
+                var cutoff = DateTimeOffset.UtcNow.AddDays(-_sla.AlertSlaDays);
+                query = query with { OpenOnly = true, To = to is { } t && t < cutoff ? t : cutoff };
+                break;
+            default:
+                return BadRequest("View must be one of: all, open, mine, unassigned, pastSla.");
+        }
+
+        var result = await _alerts.ListByTenantAsync(_tenant.TenantId, query, ct);
 
         return Ok(new AlertListResponse(
-            result.Items.Select(ToResponse).ToList(),
+            await ToResponsesAsync(result.Items, ct),
             result.Page,
             result.PageSize,
             result.TotalCount));
@@ -121,7 +154,7 @@ public sealed class AlertsController : ControllerBase
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
         var alert = await _alerts.GetByTenantAndIdAsync(_tenant.TenantId, id, ct);
-        return alert is null ? NotFound() : Ok(ToResponse(alert));
+        return alert is null ? NotFound() : Ok(await ToResponseAsync(alert, ct));
     }
 
     [HttpPost("{id:guid}/assign")]
@@ -141,7 +174,7 @@ public sealed class AlertsController : ControllerBase
         await AppendAuditAsync(alert, AuditEventTypes.ALERT_ASSIGNED,
             AuditPayload.Json(new { assignedTo = alert.AssignedTo, assigneeEmail = assignee.Email }), "Alert assigned", ct);
         await _uow.SaveChangesAsync(ct);
-        return Ok(ToResponse(alert));
+        return Ok(await ToResponseAsync(alert, ct));
     }
 
     [HttpPost("{id:guid}/dismiss")]
@@ -162,7 +195,7 @@ public sealed class AlertsController : ControllerBase
         await AppendAuditAsync(alert, AuditEventTypes.ALERT_DISMISSED,
             AuditPayload.Json(new { reason = alert.DismissalReason }), "Alert dismissed", ct);
         await _uow.SaveChangesAsync(ct);
-        return Ok(ToResponse(alert));
+        return Ok(await ToResponseAsync(alert, ct));
     }
 
     [HttpPost("{id:guid}/resolve")]
@@ -177,7 +210,7 @@ public sealed class AlertsController : ControllerBase
         alert.Resolve(_tenant.UserId.ToString());
         await AppendAuditAsync(alert, AuditEventTypes.ALERT_RESOLVED, null, "Alert resolved", ct);
         await _uow.SaveChangesAsync(ct);
-        return Ok(ToResponse(alert));
+        return Ok(await ToResponseAsync(alert, ct));
     }
 
     [HttpPost("{id:guid}/escalate")]
@@ -197,7 +230,7 @@ public sealed class AlertsController : ControllerBase
         await AppendAuditAsync(alert, AuditEventTypes.ALERT_ESCALATED,
             AuditPayload.Json(new { reason = request?.Reason?.Trim() }), "Alert escalated", ct);
         await _uow.SaveChangesAsync(ct);
-        return Ok(ToResponse(alert));
+        return Ok(await ToResponseAsync(alert, ct));
     }
 
     private Task AppendAuditAsync(Alert alert, string eventType, string? after, string reason, CancellationToken ct)
@@ -254,7 +287,22 @@ public sealed class AlertsController : ControllerBase
         return Created($"/api/v1/cases/{complianceCase.Id}", CasesController.ToResponse(complianceCase));
     }
 
-    private static AlertResponse ToResponse(Alert alert) => new(
+    private async Task<AlertResponse> ToResponseAsync(Alert alert, CancellationToken ct)
+        => (await ToResponsesAsync(new[] { alert }, ct))[0];
+
+    private async Task<IReadOnlyList<AlertResponse>> ToResponsesAsync(IReadOnlyList<Alert> alerts, CancellationToken ct)
+    {
+        var customers = await _names.CustomersAsync(_tenant.TenantId,
+            DisplayIds.Parse(alerts.Where(a => a.FocusType == FocusType.CUSTOMER).Select(a => a.FocusEntityId)), ct);
+        var users = await _names.UserNamesAsync(_tenant.TenantId, DisplayIds.Parse(alerts.Select(a => a.AssignedTo)), ct);
+        return alerts.Select(a =>
+        {
+            var customer = a.FocusType == FocusType.CUSTOMER ? DisplayIds.Find(customers, a.FocusEntityId) : null;
+            return ToResponse(a, customer, DisplayIds.Find(users, a.AssignedTo));
+        }).ToList();
+    }
+
+    private static AlertResponse ToResponse(Alert alert, CustomerLabel? customer, string? assigneeName) => new(
         alert.Id,
         alert.RuleId,
         alert.RuleVersionId,
@@ -273,5 +321,8 @@ public sealed class AlertsController : ControllerBase
         alert.Evidence.EvaluatedValues,
         alert.Evidence.ConditionsSatisfied,
         alert.Evidence.TransactionIds,
-        alert.Evidence.AdditionalContext);
+        alert.Evidence.AdditionalContext,
+        customer?.Name,
+        customer?.Country,
+        assigneeName);
 }

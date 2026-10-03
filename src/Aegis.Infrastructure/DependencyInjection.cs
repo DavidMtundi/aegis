@@ -3,6 +3,7 @@ namespace Aegis.Infrastructure;
 using System.Security.Claims;
 using System.Text;
 using Aegis.Application.Dashboard;
+using Aegis.Application.Lookups;
 using Aegis.Application.Risk;
 using Aegis.Application.Transactions;
 using Aegis.Infrastructure.Aml;
@@ -69,6 +70,7 @@ public static class DependencyInjection
                 CaseSlaDays: config.GetValue("Dashboard:CaseSlaDays", defaults.CaseSlaDays));
         });
         services.AddScoped<IDashboardQueries, Dashboard.DashboardQueries>();
+        services.AddScoped<IDisplayNameLookup, Lookups.DisplayNameLookup>();
         services.AddScoped<IFeatureCalculator, FeatureCalculator>();
         services.AddSingleton<ConditionEvaluator>();
         services.AddSingleton<ConditionGroupEvaluator>();
