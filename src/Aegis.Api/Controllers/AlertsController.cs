@@ -262,7 +262,10 @@ public sealed class AlertsController : ControllerBase
             AlertSeverity.MEDIUM => CasePriority.MEDIUM,
             _ => CasePriority.LOW
         };
-        var title = $"Case for {alert.Evidence.RuleName} ({alert.Id.ToString()[..8]})";
+        var customerName = customerId is Guid cid
+            ? (await _names.CustomersAsync(_tenant.TenantId, new[] { cid }, ct)).GetValueOrDefault(cid)?.Name
+            : null;
+        var title = customerName is null ? alert.Evidence.RuleName : $"{alert.Evidence.RuleName} · {customerName}";
         var complianceCase = ComplianceCase.CreateFromAlert(
             _tenant.TenantId,
             alert.Id,

@@ -22,6 +22,9 @@ public sealed class DisplayNameTests : IAsyncLifetime
         var detail = await _fx.AdminClient.GetFromJsonAsync<JsonElement>($"/api/v1/cases/{caseId}");
         var list = await _fx.AdminClient.GetFromJsonAsync<JsonElement>("/api/v1/cases");
 
+        var alert = await _fx.AdminClient.GetFromJsonAsync<JsonElement>($"/api/v1/alerts/{alertId}");
+        Assert.Equal($"{alert.GetProperty("ruleName").GetString()} · Sam Struct", detail.GetProperty("title").GetString());
+
         foreach (var c in new[] { detail, list.GetProperty("items")[0] })
         {
             Assert.Equal("Sam Struct", c.GetProperty("customerName").GetString());
