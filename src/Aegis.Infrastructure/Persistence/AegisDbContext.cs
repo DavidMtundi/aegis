@@ -6,6 +6,7 @@ using Aegis.Modules.Audit.Domain;
 using Aegis.Modules.Cases.Domain;
 using Aegis.Modules.Customers.Domain;
 using Aegis.Modules.Identity.Domain;
+using Aegis.Modules.Risk.Domain;
 using Aegis.Modules.Transactions.Domain;
 using Aegis.Shared.Domain;
 using Aegis.Shared.Security;
@@ -32,6 +33,8 @@ public sealed class AegisDbContext : DbContext
     public DbSet<AmlRuleVersion> AmlRuleVersions => Set<AmlRuleVersion>();
     public DbSet<Alert> Alerts => Set<Alert>();
     public DbSet<ComplianceCase> Cases => Set<ComplianceCase>();
+    public DbSet<RiskModel> RiskModels => Set<RiskModel>();
+    public DbSet<CustomerRiskScore> CustomerRiskScores => Set<CustomerRiskScore>();
 
     // Anonymous paths (login, tenant bootstrap) have no tenant yet and stay unfiltered;
     // they must keep explicit tenant predicates in their repositories.
@@ -52,6 +55,8 @@ public sealed class AegisDbContext : DbContext
         modelBuilder.Entity<AmlRuleVersion>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<Alert>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<ComplianceCase>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<RiskModel>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<CustomerRiskScore>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<AuditEvent>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantGuid);
 
         base.OnModelCreating(modelBuilder);

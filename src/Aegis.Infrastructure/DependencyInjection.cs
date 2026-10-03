@@ -2,6 +2,7 @@ namespace Aegis.Infrastructure;
 
 using System.Security.Claims;
 using System.Text;
+using Aegis.Application.Risk;
 using Aegis.Application.Transactions;
 using Aegis.Infrastructure.Aml;
 using Aegis.Infrastructure.Auth;
@@ -15,6 +16,7 @@ using Aegis.Modules.Cases.Application;
 using Aegis.Modules.Customers.Application;
 using Aegis.Modules.Features.Application;
 using Aegis.Modules.Identity.Application;
+using Aegis.Modules.Risk.Application;
 using Aegis.Modules.Transactions.Application;
 using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
@@ -50,6 +52,10 @@ public static class DependencyInjection
         services.AddScoped<IAlertRepository, AlertRepository>();
         services.AddScoped<IAlertService, AlertService>();
         services.AddScoped<ICaseRepository, CaseRepository>();
+        services.AddScoped<IRiskModelRepository, RiskModelRepository>();
+        services.AddScoped<ICustomerRiskScoreRepository, CustomerRiskScoreRepository>();
+        services.AddScoped<IRiskInputsReader, RiskInputsReader>();
+        services.AddScoped<ICustomerRiskService, CustomerRiskService>();
         services.AddScoped<IFeatureCalculator, FeatureCalculator>();
         services.AddSingleton<ConditionEvaluator>();
         services.AddSingleton<ConditionGroupEvaluator>();

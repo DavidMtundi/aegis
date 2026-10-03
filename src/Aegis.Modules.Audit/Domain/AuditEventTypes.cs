@@ -26,6 +26,7 @@ public static class AuditEventTypes
     public const string CASE_CLOSED = nameof(CASE_CLOSED);
     
     public const string RISK_SCORE_CHANGED = nameof(RISK_SCORE_CHANGED);
+    public const string RISK_MODEL_UPDATED = nameof(RISK_MODEL_UPDATED);
     public const string SCREENING_MATCH_CREATED = nameof(SCREENING_MATCH_CREATED);
     public const string SCREENING_MATCH_RESOLVED = nameof(SCREENING_MATCH_RESOLVED);
     

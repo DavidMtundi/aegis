@@ -25,6 +25,7 @@ public static class Permissions
     public const string RuleActivate = "rule.activate";
     public const string AuditRead = "audit.read";
     public const string UserManage = "user.manage";
+    public const string RiskManage = "risk.manage";
 
     public static readonly IReadOnlyList<string> All = new[]
     {
@@ -32,7 +33,7 @@ public static class Permissions
         AlertRead, AlertAssign, AlertDismiss, AlertResolve, AlertEscalate,
         CaseRead, CaseCreate, CaseUpdate, CaseClose,
         RuleRead, RuleCreate, RuleActivate,
-        AuditRead, UserManage
+        AuditRead, UserManage, RiskManage
     };
 }
 

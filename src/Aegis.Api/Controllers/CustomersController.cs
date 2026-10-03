@@ -1,6 +1,7 @@
 namespace Aegis.Api.Controllers;
 
 using Aegis.Api.Authorization;
+using Aegis.Application.Risk;
 using Aegis.Modules.Alerts.Application;
 using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Audit.Application;
@@ -9,6 +10,7 @@ using Aegis.Modules.Cases.Application;
 using Aegis.Modules.Cases.Domain;
 using Aegis.Modules.Customers.Application;
 using Aegis.Modules.Customers.Domain;
+using Aegis.Modules.Risk.Domain;
 using Aegis.Modules.Transactions.Application;
 using Aegis.Shared.Domain;
 using Aegis.Shared.Persistence;
@@ -32,6 +34,7 @@ public sealed class CustomersController : ControllerBase
     private readonly ITenantContext _tenant;
     private readonly IAuditWriter _audit;
     private readonly IUnitOfWork _uow;
+    private readonly ICustomerRiskService _risk;
 
     public CustomersController(
         ICustomerRepository customers,
@@ -41,8 +44,10 @@ public sealed class CustomersController : ControllerBase
         ICaseRepository cases,
         ITenantContext tenant,
         IAuditWriter audit,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        ICustomerRiskService risk)
     {
+        _risk = risk;
         _customers = customers;
         _accounts = accounts;
         _transactions = transactions;
@@ -103,6 +108,9 @@ public sealed class CustomersController : ControllerBase
             "Customer created",
             HttpContext.TraceIdentifier), ct);
         await _uow.SaveChangesAsync(ct);
+        await _risk.TryRecalculateAsync(
+            _tenant.TenantId, customer.Id, RiskTriggers.CustomerCreated,
+            new RiskActor(_tenant.UserId.ToString(), _tenant.Roles.FirstOrDefault(), HttpContext.TraceIdentifier), ct);
 
         return Created($"/api/v1/customers/{customer.Id}", new { id = customer.Id, type = customer.Type.ToString(), country = customer.Country });
     }

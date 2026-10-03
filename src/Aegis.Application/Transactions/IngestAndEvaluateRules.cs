@@ -1,5 +1,6 @@
 namespace Aegis.Application.Transactions;
 
+using Aegis.Application.Risk;
 using Aegis.Modules.Alerts.Application;
 using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Aml.Application;
@@ -7,6 +8,7 @@ using Aegis.Modules.Aml.Domain;
 using Aegis.Modules.Aml.Engine;
 using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Audit.Domain;
+using Aegis.Modules.Risk.Domain;
 using Aegis.Modules.Customers.Application;
 using Aegis.Modules.Features.Application;
 using Aegis.Modules.Transactions.Application;
@@ -68,6 +70,7 @@ public sealed class IngestAndEvaluateRules : IIngestAndEvaluateRules
     private readonly IAlertRepository _alertRepository;
     private readonly IAuditWriter _audit;
     private readonly IUnitOfWork _uow;
+    private readonly ICustomerRiskService _risk;
 
     public IngestAndEvaluateRules(
         ITransactionRepository transactions,
@@ -79,8 +82,10 @@ public sealed class IngestAndEvaluateRules : IIngestAndEvaluateRules
         IAlertService alerts,
         IAlertRepository alertRepository,
         IAuditWriter audit,
-        IUnitOfWork uow)
+        IUnitOfWork uow,
+        ICustomerRiskService risk)
     {
+        _risk = risk;
         _transactions = transactions;
         _customers = customers;
         _accounts = accounts;
@@ -159,6 +164,7 @@ public sealed class IngestAndEvaluateRules : IIngestAndEvaluateRules
 
         var evaluations = new List<EvaluationSummary>();
         var alertIds = new List<Guid>();
+        var alertCreated = false;
         var featuresByWindow = new Dictionary<TimeSpan, FeatureCalculationResult>();
 
         foreach (var version in activeVersions)
@@ -217,6 +223,7 @@ public sealed class IngestAndEvaluateRules : IIngestAndEvaluateRules
 
             if (upsert.WasCreated)
             {
+                alertCreated = true;
                 await _audit.AppendAsync(AuditEvent.Create(
                     command.TenantId.Value,
                     AuditEventTypes.ALERT_CREATED,
@@ -276,6 +283,13 @@ public sealed class IngestAndEvaluateRules : IIngestAndEvaluateRules
                 WasCreated: true,
                 evaluations,
                 recovered.Count > 0 ? recovered : alertIds);
+        }
+
+        if (alertCreated)
+        {
+            await _risk.TryRecalculateAsync(
+                command.TenantId, customer.Id, RiskTriggers.AlertCreated,
+                new RiskActor(command.ActorId.ToString(), command.ActorRole, command.CorrelationId), cancellationToken);
         }
 
         return new IngestAndEvaluateRulesResult(

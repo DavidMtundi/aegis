@@ -1,6 +1,10 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Aegis.Shared\Aegis.Shared.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Customers\Aegis.Modules.Customers.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Transactions\Aegis.Modules.Transactions.csproj" />
@@ -10,6 +14,7 @@
     <ProjectReference Include="..\Aegis.Modules.Audit\Aegis.Modules.Audit.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Identity\Aegis.Modules.Identity.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Cases\Aegis.Modules.Cases.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Risk\Aegis.Modules.Risk.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
