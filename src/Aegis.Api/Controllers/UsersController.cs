@@ -5,6 +5,7 @@ using Aegis.Infrastructure.Auth;
 using Aegis.Modules.Audit.Application;
 using Aegis.Modules.Audit.Domain;
 using Aegis.Modules.Identity.Application;
+using Aegis.Modules.Identity.Domain;
 using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
@@ -47,6 +48,8 @@ public sealed class UsersController : ControllerBase
         DateTimeOffset? LastLoginAt,
         DateTimeOffset CreatedAt);
 
+    public sealed record AssigneeResponse(Guid Id, string Name, string Email);
+
     public sealed record CreateUserRequest(string Email, string Name, string Password, string[]? Roles);
     public sealed record SetRolesRequest(string[]? Roles);
 
@@ -56,6 +59,19 @@ public sealed class UsersController : ControllerBase
     {
         var users = await _users.ListByTenantAsync(_tenant.TenantId, ct);
         return Ok(users.Select(ToResponse).ToList());
+    }
+
+    /// <summary>Active users who can work cases; deliberately omits roles and login history.</summary>
+    [HttpGet("assignees")]
+    [RequirePermission(Permissions.CaseUpdate)]
+    public async Task<ActionResult<IReadOnlyList<AssigneeResponse>>> Assignees(CancellationToken ct)
+    {
+        var users = await _users.ListByTenantAsync(_tenant.TenantId, ct);
+        return Ok(users
+            .Where(u => u.Status == UserStatus.ACTIVE && RolePermissions.Grants(u.RoleNames, Permissions.CaseUpdate))
+            .OrderBy(u => u.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(u => new AssigneeResponse(u.Id, u.Name, u.Email))
+            .ToList());
     }
 
     [HttpPost]

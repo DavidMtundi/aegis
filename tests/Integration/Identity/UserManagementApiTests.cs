@@ -94,6 +94,32 @@ public sealed class UserManagementApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Assignees_lists_active_users_who_can_work_cases()
+    {
+        var analystId = await CreateUserAsync($"a1@{_fx.Slug}.test", "Analyst");
+        var viewerId = await CreateUserAsync($"v1@{_fx.Slug}.test", "Viewer");
+        var goneId = await CreateUserAsync($"gone@{_fx.Slug}.test", "Analyst");
+        await _fx.AdminClient.PostAsync($"/api/v1/users/{goneId}/deactivate", null);
+        var analyst = await _fx.CreateUserClientAsync($"caller@{_fx.Slug}.test", new[] { RoleNames.Analyst });
+
+        var response = await analyst.GetAsync("/api/v1/users/assignees");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var assignees = (await response.Content.ReadFromJsonAsync<JsonElement>()).EnumerateArray().ToList();
+        var ids = assignees.Select(a => a.GetProperty("id").GetGuid()).ToList();
+
+        Assert.Contains(analystId, ids);
+        Assert.DoesNotContain(viewerId, ids);
+        Assert.DoesNotContain(goneId, ids);
+        var first = assignees.First();
+        Assert.True(first.TryGetProperty("name", out _));
+        Assert.True(first.TryGetProperty("email", out _));
+        Assert.False(first.TryGetProperty("roles", out _));
+
+        var viewer = await _fx.CreateUserClientAsync($"viewer@{_fx.Slug}.test", new[] { RoleNames.Viewer });
+        Assert.Equal(HttpStatusCode.Forbidden, (await viewer.GetAsync("/api/v1/users/assignees")).StatusCode);
+    }
+
+    [Fact]
     public async Task Non_admins_cannot_manage_users()
     {
         var reviewer = await _fx.CreateUserClientAsync($"rev@{_fx.Slug}.test", new[] { RoleNames.Reviewer });
