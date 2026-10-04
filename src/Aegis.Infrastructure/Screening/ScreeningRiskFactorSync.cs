@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 /// <summary>
 /// Gives tenants whose risk model predates screening the three screening factors, as a new audited version.
@@ -50,18 +51,28 @@ public sealed class ScreeningRiskFactorSyncService : IHostedService
 {
     private readonly IServiceScopeFactory _scopes;
     private readonly IConfiguration _config;
+    private readonly ILogger<ScreeningRiskFactorSyncService> _logger;
 
-    public ScreeningRiskFactorSyncService(IServiceScopeFactory scopes, IConfiguration config)
+    public ScreeningRiskFactorSyncService(
+        IServiceScopeFactory scopes, IConfiguration config, ILogger<ScreeningRiskFactorSyncService> logger)
     {
         _scopes = scopes;
         _config = config;
+        _logger = logger;
     }
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         if (!_config.GetValue("Risk:SyncScreeningFactorsOnStartup", true)) return;
-        await using var scope = _scopes.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<ScreeningRiskFactorSync>().SyncAsync(null, cancellationToken);
+        try
+        {
+            await using var scope = _scopes.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<ScreeningRiskFactorSync>().SyncAsync(null, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Adding screening factors to existing risk models failed; the API starts without them");
+        }
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
