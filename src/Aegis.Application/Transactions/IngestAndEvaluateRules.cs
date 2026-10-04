@@ -217,7 +217,8 @@ public sealed class IngestAndEvaluateRules : IIngestAndEvaluateRules
                 version.Definition.Severity,
                 version.Definition.RiskScore,
                 bucketTimestamp: tx.Timestamp,
-                cancellationToken);
+                lookback: window,
+                cancellationToken: cancellationToken);
 
             alertIds.Add(upsert.AlertId);
 
