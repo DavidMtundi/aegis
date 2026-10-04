@@ -19,6 +19,7 @@ using Aegis.Modules.Customers.Application;
 using Aegis.Modules.Features.Application;
 using Aegis.Modules.Identity.Application;
 using Aegis.Modules.Risk.Application;
+using Aegis.Modules.Screening.Application;
 using Aegis.Modules.Transactions.Application;
 using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
@@ -62,6 +63,9 @@ public static class DependencyInjection
         services.AddScoped<IRiskBatchSource, RiskBatchSource>();
         services.AddScoped<IRiskBatchRecalculator, RiskBatchRecalculator>();
         services.AddHostedService<Risk.NightlyRiskBatchService>();
+        services.AddScoped<IWatchlistRepository, WatchlistRepository>();
+        services.AddScoped<ITenantWatchlistRepository, TenantWatchlistRepository>();
+        services.AddScoped<IScreeningMatchRepository, ScreeningMatchRepository>();
         services.AddSingleton(sp =>
         {
             var config = sp.GetRequiredService<IConfiguration>();

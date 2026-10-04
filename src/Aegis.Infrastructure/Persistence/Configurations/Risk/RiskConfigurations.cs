@@ -1,31 +1,10 @@
 namespace Aegis.Infrastructure.Persistence.Configurations.Risk;
 
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using Aegis.Infrastructure.Persistence.Configurations;
 using Aegis.Modules.Risk.Domain;
 using Aegis.Shared.Domain;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
-internal static class RiskJson
-{
-    public static readonly JsonSerializerOptions Options = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Converters = { new JsonStringEnumConverter() }
-    };
-
-    public static string Write<T>(T value) => JsonSerializer.Serialize(value, Options);
-
-    public static T Read<T>(string json) where T : new() => JsonSerializer.Deserialize<T>(json, Options) ?? new T();
-
-    public static ValueComparer<T> Comparer<T>() where T : new() => new(
-        (a, b) => Write(a) == Write(b),
-        v => Write(v).GetHashCode(),
-        v => Read<T>(Write(v)));
-}
 
 public sealed class RiskModelConfiguration : IEntityTypeConfiguration<RiskModel>
 {
@@ -44,8 +23,8 @@ public sealed class RiskModelConfiguration : IEntityTypeConfiguration<RiskModel>
         builder.Property(x => x.Factors)
             .HasColumnName("factors_json")
             .HasColumnType("jsonb")
-            .HasConversion(v => RiskJson.Write(v), v => RiskJson.Read<List<RiskFactorDefinition>>(v))
-            .Metadata.SetValueComparer(RiskJson.Comparer<List<RiskFactorDefinition>>());
+            .HasConversion(v => JsonColumn.Write(v), v => JsonColumn.Read<List<RiskFactorDefinition>>(v))
+            .Metadata.SetValueComparer(JsonColumn.Comparer<List<RiskFactorDefinition>>());
 
         builder.OwnsOne(x => x.Bands, b =>
         {
@@ -78,8 +57,8 @@ public sealed class CustomerRiskScoreConfiguration : IEntityTypeConfiguration<Cu
         builder.Property(x => x.Contributions)
             .HasColumnName("contributions_json")
             .HasColumnType("jsonb")
-            .HasConversion(v => RiskJson.Write(v), v => RiskJson.Read<List<RiskContribution>>(v))
-            .Metadata.SetValueComparer(RiskJson.Comparer<List<RiskContribution>>());
+            .HasConversion(v => JsonColumn.Write(v), v => JsonColumn.Read<List<RiskContribution>>(v))
+            .Metadata.SetValueComparer(JsonColumn.Comparer<List<RiskContribution>>());
 
         builder.HasIndex(x => new { x.TenantId, x.CustomerId, x.CalculatedAt });
     }

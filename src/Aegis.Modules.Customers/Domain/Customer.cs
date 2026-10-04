@@ -13,6 +13,7 @@ public sealed class Customer : AggregateRoot
     public string? FirstName { get; private set; }
     public string? LastName { get; private set; }
     public string? LegalName { get; private set; }
+    public DateOnly? DateOfBirth { get; private set; }
 
     private Customer() { }
 
@@ -21,7 +22,8 @@ public sealed class Customer : AggregateRoot
         string? externalReference,
         string country,
         string firstName,
-        string lastName)
+        string lastName,
+        DateOnly? dateOfBirth = null)
     {
         var id = Guid.NewGuid();
         return new Customer
@@ -35,6 +37,7 @@ public sealed class Customer : AggregateRoot
             Country = country.Trim().ToUpperInvariant(),
             FirstName = firstName.Trim(),
             LastName = lastName.Trim(),
+            DateOfBirth = dateOfBirth,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
         };

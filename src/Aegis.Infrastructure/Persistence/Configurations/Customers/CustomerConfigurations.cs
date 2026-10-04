@@ -26,6 +26,7 @@ public sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(x => x.FirstName).HasMaxLength(100);
         builder.Property(x => x.LastName).HasMaxLength(100);
         builder.Property(x => x.LegalName).HasMaxLength(200);
+        builder.Property(x => x.DateOfBirth);
         builder.HasIndex(x => new { x.TenantId, x.Id });
         builder.Ignore(x => x.DomainEvents);
     }
