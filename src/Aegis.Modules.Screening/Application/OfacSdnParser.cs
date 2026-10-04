@@ -2,6 +2,7 @@ namespace Aegis.Modules.Screening.Application;
 
 using System.Globalization;
 using System.Text.RegularExpressions;
+using System.Xml;
 using System.Xml.Linq;
 using Aegis.Modules.Screening.Domain;
 
@@ -12,7 +13,8 @@ public static class OfacSdnParser
 
     public static WatchlistParseResult Parse(Stream xml)
     {
-        var root = XDocument.Load(xml).Root;
+        using var reader = XmlReader.Create(xml, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit });
+        var root = XDocument.Load(reader).Root;
         if (root is null || root.Name.LocalName != "sdnList")
             throw new FormatException("Not an OFAC SDN list.");
         var ns = root.Name.Namespace;

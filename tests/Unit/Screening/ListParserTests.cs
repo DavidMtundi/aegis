@@ -12,10 +12,11 @@ public sealed class ListParserTests
     [Fact]
     public void Un_list_parses_individuals_and_entities()
     {
-        var result = UnSanctionsParser.Parse(Fixture("un-sample.xml"));
+        using var xml = Fixture("un-sample.xml");
+        var result = UnSanctionsParser.Parse(xml);
 
         Assert.Equal(DateTimeOffset.Parse("2026-10-03T23:00:03.428Z"), result.PublishedAt);
-        Assert.Equal(3, result.Subjects.Count);
+        Assert.Equal(4, result.Subjects.Count);
 
         var zeph = result.Subjects.Single(s => s.ExternalId == "QDi.901");
         Assert.Equal(WatchlistSource.UN, zeph.Source);
@@ -30,6 +31,9 @@ public sealed class ListParserTests
         Assert.Equal(new[] { "BARAKA TUMAINI" }, baraka.Names);
         Assert.Equal(new[] { new BirthYearRange(1973, 1975) }, baraka.BirthYears);
 
+        var halima = result.Subjects.Single(s => s.ExternalId == "SOi.903");
+        Assert.Equal(new[] { new BirthYearRange(1981, 1981) }, halima.BirthYears);
+
         var entity = result.Subjects.Single(s => s.ExternalId == "QDe.951");
         Assert.Equal(SubjectKind.ENTITY, entity.Kind);
         Assert.Equal(new[] { "CORAL REEF TRADING COMPANY", "Coral Reef General Traders" }, entity.Names);
@@ -38,7 +42,8 @@ public sealed class ListParserTests
     [Fact]
     public void Ofac_list_parses_individuals_and_entities_and_skips_vessels()
     {
-        var result = OfacSdnParser.Parse(Fixture("ofac-sample.xml"));
+        using var xml = Fixture("ofac-sample.xml");
+        var result = OfacSdnParser.Parse(xml);
 
         Assert.Equal(new DateTimeOffset(2026, 10, 2, 0, 0, 0, TimeSpan.Zero), result.PublishedAt);
         Assert.Equal(2, result.Subjects.Count);
@@ -71,9 +76,20 @@ public sealed class ListParserTests
     [Fact]
     public void Wrong_root_element_is_rejected()
     {
-        var xml = new MemoryStream(Encoding.UTF8.GetBytes("<html></html>"));
+        using var xml = new MemoryStream(Encoding.UTF8.GetBytes("<html></html>"));
         Assert.Throws<FormatException>(() => UnSanctionsParser.Parse(xml));
         xml.Position = 0;
         Assert.Throws<FormatException>(() => OfacSdnParser.Parse(xml));
+    }
+
+    [Theory]
+    [InlineData("CONSOLIDATED_LIST")]
+    [InlineData("sdnList")]
+    public void Documents_with_a_dtd_are_rejected(string root)
+    {
+        var xml = $"<?xml version=\"1.0\"?><!DOCTYPE {root} [<!ENTITY x \"expanded\">]><{root}>&x;</{root}>";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(xml));
+        Func<Stream, WatchlistParseResult> parse = root == "sdnList" ? OfacSdnParser.Parse : UnSanctionsParser.Parse;
+        Assert.Throws<System.Xml.XmlException>(() => parse(stream));
     }
 }

@@ -1,6 +1,7 @@
 namespace Aegis.Modules.Screening.Application;
 
 using System.Globalization;
+using System.Xml;
 using System.Xml.Linq;
 using Aegis.Modules.Screening.Domain;
 
@@ -9,7 +10,8 @@ public static class UnSanctionsParser
 {
     public static WatchlistParseResult Parse(Stream xml)
     {
-        var root = XDocument.Load(xml).Root;
+        using var reader = XmlReader.Create(xml, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit });
+        var root = XDocument.Load(reader).Root;
         if (root is null || root.Name.LocalName != "CONSOLIDATED_LIST")
             throw new FormatException("Not a UN consolidated list.");
 
