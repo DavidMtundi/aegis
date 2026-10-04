@@ -86,6 +86,37 @@ public sealed class TenantWatchlistCsvParserTests
     }
 
     [Fact]
+    public void Values_longer_than_their_columns_are_row_errors()
+    {
+        var reference = new string('R', ScreeningLimits.ExternalIdMaxLength + 1);
+        var name = new string('N', ScreeningLimits.NameMaxLength + 1);
+        var notes = new string('x', ScreeningLimits.DetailMaxLength + 1);
+        var result = TenantWatchlistCsvParser.Parse(Header +
+            $"{reference},{name},PEP,INDIVIDUAL,,,,{notes}\n" +
+            $"R-2,Jane Doe,PEP,INDIVIDUAL,Short;{name},,,\n");
+
+        Assert.Empty(result.Subjects);
+        Assert.Equal(new[]
+        {
+            $"Line 2: reference is longer than {ScreeningLimits.ExternalIdMaxLength} characters; " +
+            $"name is longer than {ScreeningLimits.NameMaxLength} characters; " +
+            $"notes is longer than {ScreeningLimits.DetailMaxLength} characters.",
+            $"Line 3: an alias is longer than {ScreeningLimits.NameMaxLength} characters."
+        }, result.Errors);
+    }
+
+    [Fact]
+    public void Values_at_their_column_limits_are_accepted()
+    {
+        var result = TenantWatchlistCsvParser.Parse(Header +
+            $"{new string('R', ScreeningLimits.ExternalIdMaxLength)},{new string('N', ScreeningLimits.NameMaxLength)},PEP,INDIVIDUAL,,,," +
+            $"{new string('x', ScreeningLimits.DetailMaxLength)}\n");
+
+        Assert.Empty(result.Errors);
+        Assert.Single(result.Subjects);
+    }
+
+    [Fact]
     public void File_with_only_a_header_is_rejected()
         => Assert.Equal("The file has no rows.", Assert.Single(TenantWatchlistCsvParser.Parse(Header).Errors));
 }

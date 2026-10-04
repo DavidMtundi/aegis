@@ -76,7 +76,7 @@ public static class OfacSdnParser
 
             subjects.Add(new WatchlistSubject(
                 WatchlistSource.OFAC, uid, WatchlistCategory.SANCTIONS, kind.Value, names, birthYears, countries,
-                programs.Count == 0 ? null : string.Join(", ", programs)));
+                programs.Count == 0 ? null : ScreeningLimits.Truncate(string.Join(", ", programs), ScreeningLimits.DetailMaxLength)));
         }
 
         return new WatchlistParseResult(subjects, published);

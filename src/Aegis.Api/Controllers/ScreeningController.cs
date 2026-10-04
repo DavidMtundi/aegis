@@ -195,6 +195,8 @@ public sealed class ScreeningController : ControllerBase
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
         if (string.IsNullOrWhiteSpace(request.Reason)) return BadRequest("A reason is required.");
+        if (request.Reason.Trim().Length > ScreeningLimits.ReviewReasonMaxLength)
+            return BadRequest($"The reason is longer than {ScreeningLimits.ReviewReasonMaxLength} characters.");
         try
         {
             var match = await _screening.ReviewAsync(_tenant.TenantId, id, decision, request.Reason, Actor(), ct);

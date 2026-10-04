@@ -74,6 +74,23 @@ public sealed class ListParserTests
         => Assert.Null(OfacSdnParser.YearRange("unknown"));
 
     [Fact]
+    public void Long_details_are_truncated_to_the_column_limit()
+    {
+        var listType = new string('U', 600);
+        var un = $"<CONSOLIDATED_LIST><INDIVIDUALS><INDIVIDUAL><FIRST_NAME>A</FIRST_NAME><SECOND_NAME>B</SECOND_NAME>" +
+                 $"<UN_LIST_TYPE>{listType}</UN_LIST_TYPE><REFERENCE_NUMBER>X.1</REFERENCE_NUMBER></INDIVIDUAL></INDIVIDUALS></CONSOLIDATED_LIST>";
+        var programs = string.Concat(Enumerable.Range(0, 120).Select(i => $"<program>PROGRAM{i}</program>"));
+        var ofac = "<sdnList xmlns=\"https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/XML\">" +
+                   $"<sdnEntry><uid>1</uid><lastName>ACME</lastName><sdnType>Entity</sdnType><programList>{programs}</programList></sdnEntry></sdnList>";
+
+        using var unStream = new MemoryStream(Encoding.UTF8.GetBytes(un));
+        using var ofacStream = new MemoryStream(Encoding.UTF8.GetBytes(ofac));
+
+        Assert.Equal(ScreeningLimits.DetailMaxLength, UnSanctionsParser.Parse(unStream).Subjects.Single().Detail!.Length);
+        Assert.Equal(ScreeningLimits.DetailMaxLength, OfacSdnParser.Parse(ofacStream).Subjects.Single().Detail!.Length);
+    }
+
+    [Fact]
     public void Wrong_root_element_is_rejected()
     {
         using var xml = new MemoryStream(Encoding.UTF8.GetBytes("<html></html>"));

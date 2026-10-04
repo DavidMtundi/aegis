@@ -67,9 +67,15 @@ public static class TenantWatchlistCsvParser
             var rowErrors = new List<string>();
             var reference = Get("reference");
             var name = Get("name");
+            var aliases = (Get("aliases") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var notes = Get("notes");
             if (reference is null) rowErrors.Add("reference is required");
+            else if (reference.Length > ScreeningLimits.ExternalIdMaxLength) rowErrors.Add(TooLong("reference", ScreeningLimits.ExternalIdMaxLength));
             else if (!references.Add(reference)) rowErrors.Add($"reference '{reference}' appears more than once");
             if (name is null) rowErrors.Add("name is required");
+            else if (name.Length > ScreeningLimits.NameMaxLength) rowErrors.Add(TooLong("name", ScreeningLimits.NameMaxLength));
+            if (aliases.Any(a => a.Length > ScreeningLimits.NameMaxLength)) rowErrors.Add(TooLong("an alias", ScreeningLimits.NameMaxLength));
+            if (notes?.Length > ScreeningLimits.DetailMaxLength) rowErrors.Add(TooLong("notes", ScreeningLimits.DetailMaxLength));
             if (!TryParseName<WatchlistCategory>(Get("category"), out var category))
                 rowErrors.Add("category must be PEP, SANCTIONS or WATCHLIST");
             if (!TryParseName<SubjectKind>(Get("kind"), out var kind))
@@ -89,12 +95,12 @@ public static class TenantWatchlistCsvParser
             }
 
             var names = new List<string> { name! };
-            foreach (var alias in (Get("aliases") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            foreach (var alias in aliases)
                 if (!names.Contains(alias, StringComparer.OrdinalIgnoreCase)) names.Add(alias);
             var countries = Get("country") is { } country ? new[] { country } : Array.Empty<string>();
 
             subjects.Add(new WatchlistSubject(
-                WatchlistSource.TENANT, reference!, category, kind, names, birthYears, countries, Get("notes")));
+                WatchlistSource.TENANT, reference!, category, kind, names, birthYears, countries, notes));
         }
 
         if (errors.Count == 0 && subjects.Count == 0) errors.Add("The file has no rows.");
@@ -124,6 +130,8 @@ public static class TenantWatchlistCsvParser
         }
         return new BirthYearRange(years.Min(), years.Max());
     }
+
+    private static string TooLong(string what, int maxLength) => $"{what} is longer than {maxLength} characters";
 
     private static TenantWatchlistParseResult Fail(string error)
         => new(new[] { error }, Array.Empty<WatchlistSubject>());

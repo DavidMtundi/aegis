@@ -56,7 +56,7 @@ public static class UnSanctionsParser
         var detail = string.Join(" · ", detailParts.Where(d => d is not null));
         return new WatchlistSubject(
             WatchlistSource.UN, reference, WatchlistCategory.SANCTIONS, kind, names, birthYears, countries,
-            detail.Length == 0 ? null : detail);
+            detail.Length == 0 ? null : ScreeningLimits.Truncate(detail, ScreeningLimits.DetailMaxLength));
     }
 
     private static IReadOnlyList<BirthYearRange> BirthYears(XElement e)

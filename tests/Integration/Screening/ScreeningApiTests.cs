@@ -145,6 +145,28 @@ public sealed class ScreeningApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task List_values_longer_than_their_columns_are_rejected_with_line_errors()
+    {
+        var upload = await UploadAsync($"reference,name,category,kind,notes\nX-1,Someone,PEP,INDIVIDUAL,{new string('x', 501)}\n");
+        Assert.Equal(HttpStatusCode.BadRequest, upload.StatusCode);
+        var errors = (await upload.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors");
+        Assert.Equal("Line 2: notes is longer than 500 characters.", errors[0].GetString());
+    }
+
+    [Fact]
+    public async Task Review_reason_longer_than_its_column_is_rejected()
+    {
+        var customerId = await CreateIndividualAsync("Zephaniah", "Mbwana", null);
+        var matchId = (await SingleMatchAsync(customerId)).GetProperty("id").GetGuid();
+
+        var response = await _fx.AdminClient.PostAsJsonAsync(
+            $"/api/v1/screening/matches/{matchId}/dismiss", new { reason = new string('r', 2001) });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("PENDING_REVIEW", (await SingleMatchAsync(customerId)).GetProperty("status").GetString());
+    }
+
+    [Fact]
     public async Task Another_tenant_cannot_see_or_review_the_match()
     {
         var customerId = await CreateIndividualAsync("Zephaniah", "Mbwana", null);

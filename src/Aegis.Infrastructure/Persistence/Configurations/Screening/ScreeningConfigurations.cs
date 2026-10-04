@@ -28,10 +28,10 @@ public sealed class WatchlistEntryConfiguration : IEntityTypeConfiguration<Watch
         builder.ToTable("watchlist_entries", "screening");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Source).HasConversion<string>().HasMaxLength(16);
-        builder.Property(x => x.ExternalId).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.ExternalId).HasMaxLength(ScreeningLimits.ExternalIdMaxLength).IsRequired();
         builder.Property(x => x.Category).HasConversion<string>().HasMaxLength(16);
         builder.Property(x => x.Kind).HasConversion<string>().HasMaxLength(16);
-        builder.Property(x => x.Detail).HasMaxLength(500);
+        builder.Property(x => x.Detail).HasMaxLength(ScreeningLimits.DetailMaxLength);
         builder.Property(x => x.LoadId).HasColumnName("load_id");
         ScreeningMapping.Lists(builder);
         builder.HasIndex(x => new { x.Source, x.ExternalId }).IsUnique();
@@ -60,10 +60,10 @@ public sealed class TenantWatchlistEntryConfiguration : IEntityTypeConfiguration
             .HasConversion(id => id.Value, value => new TenantId(value))
             .HasColumnName("tenant_id")
             .IsRequired();
-        builder.Property(x => x.ExternalId).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.ExternalId).HasMaxLength(ScreeningLimits.ExternalIdMaxLength).IsRequired();
         builder.Property(x => x.Category).HasConversion<string>().HasMaxLength(16);
         builder.Property(x => x.Kind).HasConversion<string>().HasMaxLength(16);
-        builder.Property(x => x.Detail).HasMaxLength(500);
+        builder.Property(x => x.Detail).HasMaxLength(ScreeningLimits.DetailMaxLength);
         builder.Property(x => x.UploadedBy).HasMaxLength(200).IsRequired();
         ScreeningMapping.Lists(builder);
         builder.HasIndex(x => new { x.TenantId, x.ExternalId }).IsUnique();
@@ -83,13 +83,13 @@ public sealed class ScreeningMatchConfiguration : IEntityTypeConfiguration<Scree
         builder.Property(x => x.CustomerId).HasColumnName("customer_id").IsRequired();
         builder.Property(x => x.CustomerName).HasMaxLength(300).IsRequired();
         builder.Property(x => x.Source).HasConversion<string>().HasMaxLength(16);
-        builder.Property(x => x.ExternalId).HasMaxLength(64).IsRequired();
+        builder.Property(x => x.ExternalId).HasMaxLength(ScreeningLimits.ExternalIdMaxLength).IsRequired();
         builder.Property(x => x.Category).HasConversion<string>().HasMaxLength(16);
-        builder.Property(x => x.MatchedName).HasMaxLength(300).IsRequired();
+        builder.Property(x => x.MatchedName).HasMaxLength(ScreeningLimits.NameMaxLength).IsRequired();
         builder.Property(x => x.Trigger).HasMaxLength(32).IsRequired();
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
         builder.Property(x => x.ReviewedBy).HasMaxLength(200);
-        builder.Property(x => x.ReviewReason).HasMaxLength(2000);
+        builder.Property(x => x.ReviewReason).HasMaxLength(ScreeningLimits.ReviewReasonMaxLength);
         builder.Property(x => x.AlertId).HasColumnName("alert_id");
         builder.Property(x => x.Subject).HasColumnName("subject_json").HasColumnType("jsonb")
             .HasConversion(v => JsonColumn.Write(v), v => JsonColumn.Read<WatchlistSubjectJson>(v).ToSubject())
