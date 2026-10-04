@@ -110,8 +110,9 @@ public sealed class StructuringSliceTests : IAsyncLifetime
         var structuringEval = last.Value.GetProperty("evaluations").EnumerateArray()
             .First(e => e.GetProperty("ruleCode").GetString() == "STRUCTURING_001");
         Assert.True(structuringEval.GetProperty("isTriggered").GetBoolean());
-        Assert.Single(last.Value.GetProperty("alertIds").EnumerateArray());
-        Assert.Single(await SliceHelpers.ListAlertsAsync(tenant));
+        // Exact 90,000s are also round amounts, so ROUND_AMOUNTS_001 may alert alongside structuring.
+        var alerts = await SliceHelpers.ListAlertsAsync(tenant);
+        Assert.Single(alerts, a => a.GetProperty("ruleId").GetGuid() == structuringEval.GetProperty("ruleId").GetGuid());
     }
 
     [Fact]

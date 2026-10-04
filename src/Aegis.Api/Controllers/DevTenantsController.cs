@@ -21,7 +21,7 @@ public sealed class DevTenantsController : ControllerBase
     private readonly IUserRepository _users;
     private readonly PasswordHasher _passwordHasher;
     private readonly IAuditWriter _audit;
-    private readonly IStructuringRuleSeeder _structuringSeeder;
+    private readonly IDefaultRuleSeeder _ruleSeeder;
     private readonly IUnitOfWork _uow;
 
     public DevTenantsController(
@@ -31,7 +31,7 @@ public sealed class DevTenantsController : ControllerBase
         IUserRepository users,
         PasswordHasher passwordHasher,
         IAuditWriter audit,
-        IStructuringRuleSeeder structuringSeeder,
+        IDefaultRuleSeeder ruleSeeder,
         IUnitOfWork uow)
     {
         _environment = environment;
@@ -40,7 +40,7 @@ public sealed class DevTenantsController : ControllerBase
         _users = users;
         _passwordHasher = passwordHasher;
         _audit = audit;
-        _structuringSeeder = structuringSeeder;
+        _ruleSeeder = ruleSeeder;
         _uow = uow;
     }
 
@@ -125,7 +125,7 @@ public sealed class DevTenantsController : ControllerBase
             "Dev bootstrap created admin user",
             HttpContext.TraceIdentifier), ct);
 
-        await _structuringSeeder.EnsureSeededAsync(tenantId, ct);
+        await _ruleSeeder.EnsureSeededAsync(tenantId, ct);
         await _uow.SaveChangesAsync(ct);
 
         return Created($"/api/v1/tenants/{tenant.Id}", new BootstrapTenantResponse(tenant.Id, tenant.Slug, admin.Id));
