@@ -82,6 +82,11 @@ public static class DependencyInjection
             sp.GetRequiredService<IConfiguration>().GetValue("Screening:MatchThreshold", WatchlistIndex.DefaultThreshold)));
         services.AddScoped<IScreeningCandidateReader, Screening.ScreeningCandidateReader>();
         services.AddScoped<ICustomerScreeningService, CustomerScreeningService>();
+        services.AddScoped<ITenantScreeningStateRepository, TenantScreeningStateRepository>();
+        services.AddScoped<IScreeningRescreener, ScreeningRescreener>();
+        services.AddSingleton<IRescreenSignal, Screening.RescreenSignal>();
+        services.AddSingleton<Screening.ScreeningRescreenService>();
+        services.AddHostedService(sp => sp.GetRequiredService<Screening.ScreeningRescreenService>());
         services.AddHostedService<Screening.WatchlistRefreshService>();
         services.AddSingleton(sp =>
         {

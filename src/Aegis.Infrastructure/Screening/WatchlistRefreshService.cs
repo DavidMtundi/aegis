@@ -3,27 +3,28 @@ namespace Aegis.Infrastructure.Screening;
 using Aegis.Application.Risk;
 using Aegis.Application.Screening;
 using Aegis.Modules.Screening.Application;
-using Aegis.Modules.Screening.Domain;
-using Aegis.Shared.Domain;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
-/// Loads any list that has never been loaded at startup, then refreshes UN and OFAC daily and rescreens every
-/// customer of every non-suspended tenant when a list changed.
+/// Loads any list that has never been loaded at startup, then refreshes UN and OFAC daily. When a list changed it
+/// wakes <see cref="ScreeningRescreenService"/>, which rescreens the tenants.
 /// Settings: Screening:Refresh:Enabled (default true) and Screening:Refresh:HourUtc (default 1).
 /// </summary>
 public sealed class WatchlistRefreshService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopes;
+    private readonly IRescreenSignal _rescreen;
     private readonly IConfiguration _config;
     private readonly ILogger<WatchlistRefreshService> _logger;
 
-    public WatchlistRefreshService(IServiceScopeFactory scopes, IConfiguration config, ILogger<WatchlistRefreshService> logger)
+    public WatchlistRefreshService(
+        IServiceScopeFactory scopes, IRescreenSignal rescreen, IConfiguration config, ILogger<WatchlistRefreshService> logger)
     {
         _scopes = scopes;
+        _rescreen = rescreen;
         _config = config;
         _logger = logger;
     }
@@ -81,28 +82,6 @@ public sealed class WatchlistRefreshService : BackgroundService
                 changed |= (await refresher.RefreshAsync(source, ct)).Status == WatchlistRefreshStatus.LOADED;
             }
         }
-        if (!changed) return;
-
-        IReadOnlyList<Guid> tenantIds;
-        await using (var scope = _scopes.CreateAsyncScope())
-        {
-            tenantIds = await scope.ServiceProvider.GetRequiredService<IRiskBatchSource>().ListScorableTenantIdsAsync(ct);
-        }
-
-        foreach (var tenantId in tenantIds)
-        {
-            await using var scope = _scopes.CreateAsyncScope();
-            try
-            {
-                var outcome = await scope.ServiceProvider.GetRequiredService<ICustomerScreeningService>()
-                    .ScreenTenantAsync(new TenantId(tenantId), ScreeningTriggers.ListUpdated, RiskActor.System, ct);
-                _logger.LogInformation("Rescreened {Count} customers for tenant {TenantId}: {Matches} new matches",
-                    outcome.Screened, tenantId, outcome.NewMatchIds.Count);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _logger.LogError(ex, "Rescreen failed for tenant {TenantId}", tenantId);
-            }
-        }
+        if (changed) _rescreen.Request();
     }
 }

@@ -32,6 +32,15 @@ public interface ITenantWatchlistRepository
     Task ReplaceAsync(TenantId tenantId, IReadOnlyList<TenantWatchlistEntry> entries, CancellationToken cancellationToken = default);
 }
 
+public interface ITenantScreeningStateRepository
+{
+    /// <returns>Null when the tenant has never been fully screened.</returns>
+    Task<string?> GetListVersionAsync(TenantId tenantId, CancellationToken cancellationToken = default);
+
+    /// <summary>Records that the tenant was fully screened against <paramref name="listVersion"/>; the caller saves.</summary>
+    Task SetListVersionAsync(TenantId tenantId, string listVersion, CancellationToken cancellationToken = default);
+}
+
 public sealed record ScreeningMatchQuery(ScreeningMatchStatus? Status = null, Guid? CustomerId = null, int Page = 1, int PageSize = 50);
 
 public interface IScreeningMatchRepository

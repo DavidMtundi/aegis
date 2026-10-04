@@ -48,8 +48,10 @@ The seeder also fills the screening queue (skip with `--no-screening`): it uploa
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `Screening:Refresh:Enabled` | `true` | Daily download of the UN and OFAC lists, then rescreening of every tenant when a list changed |
+| `Screening:Refresh:Enabled` | `true` | Daily download of the UN and OFAC lists |
 | `Screening:Refresh:HourUtc` | `1` | Hour (UTC) the daily refresh runs |
+| `Screening:Rescreen:Enabled` | `true` | Background rescreen of every tenant whose lists changed since its last full screen (after a refresh, an upload, or every interval) |
+| `Screening:Rescreen:IntervalMinutes` | `15` | How often the rescreen worker checks without being woken |
 | `Screening:Sources:UN:Url`, `Screening:Sources:OFAC:Url` | official UN consolidated XML and OFAC SDN XML | Where to download each list |
 | `Screening:Sources:UN:Path`, `Screening:Sources:OFAC:Path` | unset | Read the list from a local file instead of downloading it (offline installs, tests) |
 | `Screening:MatchThreshold` | `0.88` | Minimum name similarity (0–1) for a possible match |

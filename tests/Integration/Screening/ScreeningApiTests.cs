@@ -4,8 +4,13 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Aegis.Infrastructure.Screening;
+using Aegis.Modules.Screening.Application;
+using Aegis.Shared.Domain;
+using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
 using Aegis.Tests.Integration.Alerts;
+using Microsoft.Extensions.DependencyInjection;
 
 public sealed class ScreeningApiTests : IAsyncLifetime
 {
@@ -142,10 +147,46 @@ public sealed class ScreeningApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, upload.StatusCode);
         var body = await upload.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(1, body.GetProperty("entryCount").GetInt32());
-        Assert.Equal(1, body.GetProperty("newMatches").GetInt32());
+        Assert.True(body.GetProperty("rescreenQueued").GetBoolean());
+        Assert.False(body.TryGetProperty("newMatches", out _));
+
+        Assert.True(await RescreenAsync());
         var match = await SingleMatchAsync(customerId);
         Assert.Equal("TENANT", match.GetProperty("source").GetString());
         Assert.Equal("PEP", match.GetProperty("category").GetString());
+        Assert.Equal("LIST_UPDATED", match.GetProperty("trigger").GetString());
+        Assert.False(await RescreenAsync());
+    }
+
+    [Fact]
+    public async Task Refresh_queues_the_rescreen_instead_of_running_it()
+    {
+        var refresh = await _fx.AdminClient.PostAsync("/api/v1/screening/lists/refresh", null);
+
+        var body = await refresh.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.GetProperty("rescreenQueued").GetBoolean());
+        Assert.False(body.TryGetProperty("newMatches", out _));
+    }
+
+    [Fact]
+    public async Task A_tenant_screened_against_older_lists_is_rescreened_whoever_loaded_them()
+    {
+        var customerId = await CreateIndividualAsync("Zephaniah", "Mbwana", null);
+        var matchId = (await SingleMatchAsync(customerId)).GetProperty("id").GetGuid();
+        await RescreenAsync();
+        Assert.False(await RescreenAsync());
+
+        await using (var scope = _fx.Factory.Services.CreateAsyncScope())
+        {
+            // As if another process had loaded a new UN file after this tenant's last full screen.
+            await scope.ServiceProvider.GetRequiredService<ITenantScreeningStateRepository>()
+                .SetListVersionAsync(new TenantId(_fx.TenantId), "UN:older-load");
+            await scope.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync();
+        }
+
+        Assert.True(await RescreenAsync());
+        Assert.Equal(matchId, (await SingleMatchAsync(customerId)).GetProperty("id").GetGuid());
+        Assert.False(await RescreenAsync());
     }
 
     [Fact]
@@ -227,6 +268,10 @@ public sealed class ScreeningApiTests : IAsyncLifetime
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
     }
+
+    private Task<bool> RescreenAsync()
+        => _fx.Factory.Services.GetRequiredService<ScreeningRescreenService>()
+            .RescreenTenantAsync(new TenantId(_fx.TenantId), CancellationToken.None);
 
     private Task<JsonElement> MatchesAsync(Guid customerId)
         => _fx.AdminClient.GetFromJsonAsync<JsonElement>($"/api/v1/screening/matches?customerId={customerId}");

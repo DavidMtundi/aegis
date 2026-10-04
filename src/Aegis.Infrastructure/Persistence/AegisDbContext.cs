@@ -40,6 +40,7 @@ public sealed class AegisDbContext : DbContext
     public DbSet<WatchlistLoad> WatchlistLoads => Set<WatchlistLoad>();
     public DbSet<TenantWatchlistEntry> TenantWatchlistEntries => Set<TenantWatchlistEntry>();
     public DbSet<ScreeningMatch> ScreeningMatches => Set<ScreeningMatch>();
+    public DbSet<TenantScreeningState> TenantScreeningStates => Set<TenantScreeningState>();
 
     // Anonymous paths (login, tenant bootstrap) have no tenant yet and stay unfiltered;
     // they must keep explicit tenant predicates in their repositories.
@@ -64,6 +65,7 @@ public sealed class AegisDbContext : DbContext
         modelBuilder.Entity<CustomerRiskScore>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<TenantWatchlistEntry>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<ScreeningMatch>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantId);
+        modelBuilder.Entity<TenantScreeningState>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<AuditEvent>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantGuid);
 
         base.OnModelCreating(modelBuilder);

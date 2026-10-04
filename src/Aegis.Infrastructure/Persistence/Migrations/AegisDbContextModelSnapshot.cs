@@ -824,6 +824,25 @@ namespace Aegis.Infrastructure.Persistence.Migrations
                     b.ToTable("screening_matches", "screening");
                 });
 
+            modelBuilder.Entity("Aegis.Modules.Screening.Domain.TenantScreeningState", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("ListVersion")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("ScreenedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("TenantId");
+
+                    b.ToTable("tenant_screening_states", "screening");
+                });
+
             modelBuilder.Entity("Aegis.Modules.Screening.Domain.TenantWatchlistEntry", b =>
                 {
                     b.Property<Guid>("Id")

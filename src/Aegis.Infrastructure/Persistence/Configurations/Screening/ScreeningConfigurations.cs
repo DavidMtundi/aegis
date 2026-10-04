@@ -70,6 +70,20 @@ public sealed class TenantWatchlistEntryConfiguration : IEntityTypeConfiguration
     }
 }
 
+public sealed class TenantScreeningStateConfiguration : IEntityTypeConfiguration<TenantScreeningState>
+{
+    public void Configure(EntityTypeBuilder<TenantScreeningState> builder)
+    {
+        builder.ToTable("tenant_screening_states", "screening");
+        builder.HasKey(x => x.TenantId);
+        builder.Property(x => x.TenantId)
+            .HasConversion(id => id.Value, value => new TenantId(value))
+            .HasColumnName("tenant_id")
+            .ValueGeneratedNever();
+        builder.Property(x => x.ListVersion).HasMaxLength(TenantScreeningState.ListVersionMaxLength).IsRequired();
+    }
+}
+
 public sealed class ScreeningMatchConfiguration : IEntityTypeConfiguration<ScreeningMatch>
 {
     public void Configure(EntityTypeBuilder<ScreeningMatch> builder)

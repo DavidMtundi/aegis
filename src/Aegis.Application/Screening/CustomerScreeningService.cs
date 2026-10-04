@@ -110,13 +110,46 @@ public sealed class CustomerScreeningService : ICustomerScreeningService
         {
             var batch = await _candidates.ListAsync(tenantId, after, BatchSize, cancellationToken);
             if (batch.Count == 0) break;
+            var batchCreated = new List<Guid>();
             foreach (var candidate in batch)
-                created.AddRange(await ScreenAsync(tenantId, candidate, lists, trigger, actor, cancellationToken));
-            await _uow.SaveChangesAsync(cancellationToken);
+                batchCreated.AddRange(await ScreenAsync(tenantId, candidate, lists, trigger, actor, cancellationToken));
+            try
+            {
+                await _uow.SaveChangesAsync(cancellationToken);
+                created.AddRange(batchCreated);
+            }
+            catch (UniqueConstraintViolationException ex)
+            {
+                // Another writer (customer create, a second process) recorded one of these matches first.
+                _logger.LogWarning(ex, "Screening batch for tenant {TenantId} hit a duplicate match; saving customer by customer", tenantId.Value);
+                created.AddRange(await ScreenOneByOneAsync(tenantId, batch, lists, trigger, actor, cancellationToken));
+            }
             screened += batch.Count;
             after = batch[^1].CustomerId;
         }
         return new ScreeningOutcome(screened, created);
+    }
+
+    private async Task<IReadOnlyList<Guid>> ScreenOneByOneAsync(
+        TenantId tenantId, IReadOnlyList<ScreeningCandidate> batch, WatchlistIndex[] lists, string trigger, RiskActor actor,
+        CancellationToken cancellationToken)
+    {
+        var created = new List<Guid>();
+        foreach (var candidate in batch)
+        {
+            var ids = await ScreenAsync(tenantId, candidate, lists, trigger, actor, cancellationToken);
+            if (ids.Count == 0) continue;
+            try
+            {
+                await _uow.SaveChangesAsync(cancellationToken);
+                created.AddRange(ids);
+            }
+            catch (UniqueConstraintViolationException)
+            {
+                _logger.LogWarning("Skipped duplicate screening match for customer {CustomerId}", candidate.CustomerId);
+            }
+        }
+        return created;
     }
 
     public async Task<ScreeningMatch?> ReviewAsync(

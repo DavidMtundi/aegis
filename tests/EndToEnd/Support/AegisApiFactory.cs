@@ -22,7 +22,8 @@ public sealed class AegisApiFactory : WebApplicationFactory<Program>
                 ["Jwt:Issuer"] = "aegis",
                 ["Jwt:Audience"] = "aegis-api",
                 ["Aegis:AllowDevBootstrap"] = "true",
-                ["Risk:NightlyBatch:Enabled"] = "false"
+                ["Risk:NightlyBatch:Enabled"] = "false",
+                ["Screening:Rescreen:Enabled"] = "false"
             });
         });
     }

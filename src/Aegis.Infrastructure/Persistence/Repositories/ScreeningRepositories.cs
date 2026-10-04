@@ -77,6 +77,26 @@ public sealed class TenantWatchlistRepository : ITenantWatchlistRepository
     }
 }
 
+public sealed class TenantScreeningStateRepository : ITenantScreeningStateRepository
+{
+    private readonly AegisDbContext _db;
+
+    public TenantScreeningStateRepository(AegisDbContext db) => _db = db;
+
+    public Task<string?> GetListVersionAsync(TenantId tenantId, CancellationToken cancellationToken = default)
+        => _db.TenantScreeningStates.AsNoTracking()
+            .Where(s => s.TenantId == tenantId)
+            .Select(s => s.ListVersion)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public async Task SetListVersionAsync(TenantId tenantId, string listVersion, CancellationToken cancellationToken = default)
+    {
+        var state = await _db.TenantScreeningStates.FirstOrDefaultAsync(s => s.TenantId == tenantId, cancellationToken);
+        if (state is null) await _db.TenantScreeningStates.AddAsync(TenantScreeningState.Create(tenantId, listVersion), cancellationToken);
+        else state.Advance(listVersion);
+    }
+}
+
 public sealed class ScreeningMatchRepository : IScreeningMatchRepository
 {
     private readonly AegisDbContext _db;

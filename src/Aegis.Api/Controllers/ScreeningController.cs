@@ -27,6 +27,7 @@ public sealed class ScreeningController : ControllerBase
     private readonly IWatchlistRepository _lists;
     private readonly ITenantWatchlistRepository _tenantLists;
     private readonly IWatchlistRefresher _refresher;
+    private readonly IRescreenSignal _rescreen;
     private readonly IAuditWriter _audit;
     private readonly IUnitOfWork _uow;
     private readonly ITenantContext _tenant;
@@ -37,6 +38,7 @@ public sealed class ScreeningController : ControllerBase
         IWatchlistRepository lists,
         ITenantWatchlistRepository tenantLists,
         IWatchlistRefresher refresher,
+        IRescreenSignal rescreen,
         IAuditWriter audit,
         IUnitOfWork uow,
         ITenantContext tenant)
@@ -46,6 +48,7 @@ public sealed class ScreeningController : ControllerBase
         _lists = lists;
         _tenantLists = tenantLists;
         _refresher = refresher;
+        _rescreen = rescreen;
         _audit = audit;
         _uow = uow;
         _tenant = tenant;
@@ -69,9 +72,9 @@ public sealed class ScreeningController : ControllerBase
 
     public sealed record RefreshResultDto(string Source, string Status, int EntryCount, string? Error);
 
-    public sealed record RefreshResponse(IReadOnlyList<RefreshResultDto> Results, int NewMatches);
+    public sealed record RefreshResponse(IReadOnlyList<RefreshResultDto> Results, bool RescreenQueued);
 
-    public sealed record UploadResponse(int EntryCount, int NewMatches);
+    public sealed record UploadResponse(int EntryCount, bool RescreenQueued);
 
     public sealed record ScreenResponse(int NewMatches, IReadOnlyList<Guid> MatchIds);
 
@@ -86,7 +89,7 @@ public sealed class ScreeningController : ControllerBase
             await _tenantLists.GetSummaryAsync(_tenant.TenantId, ct));
     }
 
-    /// <summary>Refreshes the shared lists now and rescreens this tenant; other tenants are rescreened by the daily job.</summary>
+    /// <summary>Refreshes the shared lists now; the rescreen worker then rescreens every tenant whose lists changed.</summary>
     [HttpPost("screening/lists/refresh")]
     [RequirePermission(Permissions.ScreeningManage)]
     public async Task<ActionResult<RefreshResponse>> Refresh(CancellationToken ct)
@@ -106,15 +109,13 @@ public sealed class ScreeningController : ControllerBase
             HttpContext.TraceIdentifier), ct);
         await _uow.SaveChangesAsync(ct);
 
-        var newMatches = 0;
-        if (results.Any(r => r.Status == WatchlistRefreshStatus.LOADED))
-            newMatches = (await _screening.ScreenTenantAsync(_tenant.TenantId, ScreeningTriggers.ListUpdated, Actor(), ct)).NewMatchIds.Count;
+        _rescreen.Request();
 
         return new RefreshResponse(
             results.Select(r => new RefreshResultDto(
                 r.Source.ToString(), r.Status.ToString(), r.EntryCount,
                 r.Status == WatchlistRefreshStatus.FAILED ? RefreshFailedMessage : null)).ToList(),
-            newMatches);
+            RescreenQueued: true);
     }
 
     [HttpPut("screening/tenant-list")]
@@ -144,9 +145,9 @@ public sealed class ScreeningController : ControllerBase
             AuditPayload.Json(new { entryCount = parsed.Subjects.Count, fileName = file.FileName }),
             $"Screening list replaced with {parsed.Subjects.Count} entries", HttpContext.TraceIdentifier), ct);
         await _uow.SaveChangesAsync(ct);
+        _rescreen.Request();
 
-        var outcome = await _screening.ScreenTenantAsync(_tenant.TenantId, ScreeningTriggers.ListUpdated, Actor(), ct);
-        return Ok(new UploadResponse(parsed.Subjects.Count, outcome.NewMatchIds.Count));
+        return Ok(new UploadResponse(parsed.Subjects.Count, RescreenQueued: true));
     }
 
     [HttpGet("screening/matches")]
