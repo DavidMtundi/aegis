@@ -51,6 +51,11 @@ public static class TenantWatchlistCsvParser
                 errors.Add($"Line {lineNumber}: unterminated quote.");
                 continue;
             }
+            if (fields.Count != header.Count)
+            {
+                errors.Add($"Line {lineNumber}: expected {header.Count} columns but found {fields.Count}.");
+                continue;
+            }
 
             string? Get(string name)
             {
@@ -65,9 +70,9 @@ public static class TenantWatchlistCsvParser
             if (reference is null) rowErrors.Add("reference is required");
             else if (!references.Add(reference)) rowErrors.Add($"reference '{reference}' appears more than once");
             if (name is null) rowErrors.Add("name is required");
-            if (!Enum.TryParse<WatchlistCategory>(Get("category"), true, out var category) || !Enum.IsDefined(category))
+            if (!TryParseName<WatchlistCategory>(Get("category"), out var category))
                 rowErrors.Add("category must be PEP, SANCTIONS or WATCHLIST");
-            if (!Enum.TryParse<SubjectKind>(Get("kind"), true, out var kind) || !Enum.IsDefined(kind))
+            if (!TryParseName<SubjectKind>(Get("kind"), out var kind))
                 rowErrors.Add("kind must be INDIVIDUAL or ENTITY");
 
             var birthYears = new List<BirthYearRange>();
@@ -96,6 +101,14 @@ public static class TenantWatchlistCsvParser
         return errors.Count > 0
             ? new TenantWatchlistParseResult(errors, Array.Empty<WatchlistSubject>())
             : new TenantWatchlistParseResult(Array.Empty<string>(), subjects);
+    }
+
+    /// <summary>Enum names only; <see cref="Enum.TryParse{TEnum}(string?, bool, out TEnum)"/> also accepts numbers and comma lists.</summary>
+    private static bool TryParseName<T>(string? text, out T value) where T : struct, Enum
+    {
+        var name = Enum.GetNames<T>().FirstOrDefault(n => string.Equals(n, text, StringComparison.OrdinalIgnoreCase));
+        value = name is null ? default : Enum.Parse<T>(name);
+        return name is not null;
     }
 
     private static BirthYearRange? ParseYears(string text)

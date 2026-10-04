@@ -52,6 +52,39 @@ public sealed class TenantWatchlistCsvParserTests
         Assert.Equal("Line 4: reference 'OK-1' appears more than once.", result.Errors[1]);
     }
 
+    [Theory]
+    [InlineData("1,INDIVIDUAL", "category must be PEP, SANCTIONS or WATCHLIST")]
+    [InlineData("\"SANCTIONS,PEP\",INDIVIDUAL", "category must be PEP, SANCTIONS or WATCHLIST")]
+    [InlineData("PEP,1", "kind must be INDIVIDUAL or ENTITY")]
+    public void Category_and_kind_accept_only_names(string categoryAndKind, string error)
+    {
+        var result = TenantWatchlistCsvParser.Parse(Header + $"R-1,Some Name,{categoryAndKind},,,,\n");
+
+        Assert.Empty(result.Subjects);
+        Assert.Equal($"Line 2: {error}.", Assert.Single(result.Errors));
+    }
+
+    [Fact]
+    public void Row_with_wrong_column_count_rejects_the_file()
+    {
+        var result = TenantWatchlistCsvParser.Parse(Header +
+            "PEP-1,Jane Doe,PEP,INDIVIDUAL,,1970,KE,Former governor, Nairobi\n");
+
+        Assert.Empty(result.Subjects);
+        Assert.Equal("Line 2: expected 8 columns but found 9.", Assert.Single(result.Errors));
+    }
+
+    [Fact]
+    public void Missing_reference_and_name_are_row_errors()
+    {
+        var result = TenantWatchlistCsvParser.Parse(Header +
+            ",Jane Doe,PEP,INDIVIDUAL,,,,\n" +
+            "R-2,,PEP,INDIVIDUAL,,,,\n");
+
+        Assert.Empty(result.Subjects);
+        Assert.Equal(new[] { "Line 2: reference is required.", "Line 3: name is required." }, result.Errors);
+    }
+
     [Fact]
     public void File_with_only_a_header_is_rejected()
         => Assert.Equal("The file has no rows.", Assert.Single(TenantWatchlistCsvParser.Parse(Header).Errors));
