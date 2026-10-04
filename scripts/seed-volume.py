@@ -7,6 +7,10 @@ structuring, rapid-movement and high-risk-geography patterns mixed in, then
 analyst work on the resulting alerts (assign, dismiss, resolve, escalate,
 cases with notes, links and closures).
 
+--screening (on by default; --no-screening skips it) uploads a tenant screening
+list matching some seeded customers, refreshes the UN and OFAC lists, adds two
+customers who are on the UN list, and confirms or dismisses a few matches.
+
 --backdate (local Docker Postgres only) moves alert, case, audit and ingest
 timestamps back to when the underlying activity happened, so the dashboard's
 age, SLA and trend charts look like a team that has been working for weeks.
@@ -22,6 +26,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
 from datetime import datetime, timedelta, timezone
 
 FIRST = ["Amina", "Brian", "Cynthia", "Daniel", "Esther", "Felix", "Grace", "Hassan", "Irene", "James",
@@ -74,6 +79,14 @@ TEAM = [
     ("Esther Nyambura", "esther", ["Reviewer"]),
     ("Daniel Mutua", "daniel", ["Viewer"]),
 ]
+# Individuals on the UN Security Council consolidated list (checked against the live XML on 2026-10-04),
+# with their listed dates of birth, so screening against the real list produces hits.
+UN_LISTED = [
+    ("Germain", "Katanga", "1978-04-28", "CDi.006"),
+    ("Alfred", "Yekatom", "1976-06-23", "CFi.004"),
+]
+CONFIRM_REASON = "Seeded: ID number matches"
+DISMISS_MATCH_REASON = "Seeded: different date of birth"
 
 
 class Api:
@@ -96,6 +109,20 @@ class Api:
             if e.code in ok:
                 return e.code, None
             return e.code, text
+
+    def upload(self, method, path, field, filename, content, content_type="text/csv"):
+        boundary = "----aegis-seed-" + uuid.uuid4().hex
+        data = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"{field}\"; filename=\"{filename}\"\r\n"
+                f"Content-Type: {content_type}\r\n\r\n").encode() + content.encode() + f"\r\n--{boundary}--\r\n".encode()
+        req = urllib.request.Request(self.base + path, data=data, method=method)
+        req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
+        req.add_header("Authorization", f"Bearer {self.token}")
+        try:
+            with urllib.request.urlopen(req, timeout=300) as resp:
+                raw = resp.read()
+                return resp.status, (json.loads(raw) if raw else None)
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode(errors="replace")
 
     def login(self, slug, email, password):
         for _ in range(12):
@@ -124,6 +151,8 @@ def main():
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--tag", default=None, help="Reference prefix; defaults to a timestamp so reruns add data")
     p.add_argument("--backdate", action="store_true")
+    p.add_argument("--screening", action=argparse.BooleanOptionalAction, default=True,
+                   help="Upload a tenant screening list, refresh UN/OFAC, add two UN-listed customers, review matches")
     p.add_argument("--pg-container", default="aegis-postgres-1")
     args = p.parse_args()
 
@@ -181,9 +210,13 @@ def main():
             if status not in (200, 201):
                 raise SystemExit(f"Create account: {status} {a}")
             accounts.append({"id": a["id"], "currency": ccy, "type": acct_type})
-        customers.append({"id": c["id"], "business": business, "accounts": accounts})
+        customers.append({"id": c["id"], "business": business, "accounts": accounts,
+                          "name": body.get("legalName") or f"{body['firstName']} {body['lastName']}"})
         if (i + 1) % 50 == 0:
             print(f"  customers: {i + 1}/{args.customers}")
+
+    if args.screening:
+        screening(api, api.token, tag, customers, reviewers[0]["token"])
 
     # Transactions
     txs = []
@@ -457,6 +490,83 @@ def main():
         backdate(args, tag, alerts, cases, rnd, now, joined)
     print(f"Done. Sign in at http://localhost:3000/login with slug {args.slug}.")
     print(f"Team logins use the same password: " + ", ".join(u["email"] for u in users.values()))
+
+
+def screening(api, token, tag, customers, reviewer_token):
+    """Tenant list hits, real UN list hits, and a few reviewed matches; the rest stay pending."""
+    def csv_field(value):
+        value = str(value)
+        return '"' + value.replace('"', '""') + '"' if any(ch in value for ch in ',"\n') else value
+
+    by_name = {}
+    for c in customers:
+        by_name.setdefault((c["name"], c["business"]), c)
+    people = [c for (_, business), c in by_name.items() if not business][:4]
+    business = next((c for (_, b), c in by_name.items() if b), None)
+    if len(people) < 4:
+        print("  screening: skipped, needs at least four individual customers")
+        return
+
+    rows = [(f"{tag}-PEP-{i + 1}", c["name"], "PEP", "INDIVIDUAL", "", f"{1958 + 7 * i}-{1964 + 7 * i}", "Kenya",
+             note) for i, (c, note) in enumerate(zip(people[:3], [
+                 "County assembly member, 2017-2022", "Senior official, state corporation board",
+                 "Close associate of a cabinet secretary"]))]
+    rows.append((f"{tag}-PEP-4", "Cornelius Lekishon Mbatha", "PEP", "INDIVIDUAL", "C. L. Mbatha", "1961", "Kenya",
+                 "Former ambassador; no customer relationship"))
+    rows.append((f"{tag}-WL-1", people[3]["name"], "WATCHLIST", "INDIVIDUAL", "", "", "Kenya",
+                 "Internal blacklist: chargeback fraud, 2025"))
+    watch_entity = business or people[2]
+    rows.append((f"{tag}-WL-2", watch_entity["name"], "WATCHLIST", "ENTITY" if business else "INDIVIDUAL", "", "",
+                 "Kenya", "Adverse media: unlicensed forex dealing"))
+    header = "reference,name,category,kind,aliases,birthYear,country,notes"
+    csv = "\n".join([header] + [",".join(csv_field(v) for v in row) for row in rows]) + "\n"
+    status, res = api.upload("PUT", "/api/v1/screening/tenant-list", "file", f"{tag}-screening-list.csv", csv)
+    if status != 200:
+        raise SystemExit(f"Upload screening list: {status} {res}")
+    print(f"  screening: tenant list {res['entryCount']} entries, {res['newMatches']} new matches")
+
+    status, res = api.call("POST", "/api/v1/screening/lists/refresh", token=token)
+    if status != 200:
+        raise SystemExit(f"Refresh screening lists: {status} {res}")
+    loaded = {r["source"]: r for r in res["results"]}
+    print("  screening: " + ", ".join(f"{s} {r['status']} ({r['entryCount']})" for s, r in loaded.items())
+          + f", {res['newMatches']} new matches")
+    if loaded.get("UN", {}).get("status") not in ("LOADED", "UNCHANGED"):
+        print("  screening: UN list not loaded; the UN-listed customers will have no matches")
+
+    un_customers = []
+    for i, (first, last, dob, _) in enumerate(UN_LISTED):
+        status, c = api.call("POST", "/api/v1/customers",
+                             {"type": "INDIVIDUAL", "country": "KE", "firstName": first, "lastName": last,
+                              "dateOfBirth": dob, "externalReference": f"{tag}-UN{i}"}, token=token)
+        if status not in (200, 201):
+            raise SystemExit(f"Create customer {first} {last}: {status} {c}")
+        un_customers.append(c["id"])
+
+    def pending(customer_id, source=None, category=None):
+        status, res = api.call("GET", f"/api/v1/screening/matches?status=PENDING_REVIEW&customerId={customer_id}",
+                               token=token)
+        items = res["items"] if status == 200 else []
+        return next((m for m in items if (source is None or m["source"] == source)
+                     and (category is None or m["category"] == category)), None)
+
+    def review(match, action, reason):
+        if not match:
+            return False
+        path = f"/api/v1/screening/matches/{match['id']}/{action}"
+        status, _ = api.call("POST", path, {"reason": reason}, token=reviewer_token)
+        if status == 403:
+            status, _ = api.call("POST", path, {"reason": reason}, token=token)
+        return status == 200
+
+    reviewed = [
+        review(pending(people[0]["id"], "TENANT", "PEP"), "confirm", CONFIRM_REASON),
+        review(pending(un_customers[0], "UN"), "confirm", CONFIRM_REASON),
+        review(pending(people[3]["id"], "TENANT", "WATCHLIST"), "dismiss", DISMISS_MATCH_REASON),
+    ]
+    status, res = api.call("GET", "/api/v1/screening/matches?status=PENDING_REVIEW&pageSize=1", token=token)
+    left = res["totalCount"] if status == 200 else "?"
+    print(f"  screening: {sum(reviewed)}/3 matches reviewed, {left} pending")
 
 
 def backdate(args, tag, alerts, cases, rnd, now, joined):

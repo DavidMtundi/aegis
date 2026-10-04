@@ -42,6 +42,19 @@ python3 scripts/seed-volume.py --slug <tenant-slug> --email <admin-email> --back
 
 `--backdate` writes to the local Docker Postgres (`aegis-postgres-1`) so alert and case ages span the 60 days; omit it against any shared database.
 
+The seeder also fills the screening queue (skip with `--no-screening`): it uploads a six-row tenant list (PEPs and watchlist entries named after seeded customers, plus one PEP who matches nobody), refreshes the UN and OFAC lists (needs internet access), creates two customers who are on the UN consolidated list (Germain Katanga, Alfred Yekatom, with their listed dates of birth), confirms one PEP and one UN match, dismisses one watchlist match and leaves the rest pending.
+
+### Screening settings
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `Screening:Refresh:Enabled` | `true` | Daily download of the UN and OFAC lists, then rescreening of every tenant when a list changed |
+| `Screening:Refresh:HourUtc` | `1` | Hour (UTC) the daily refresh runs |
+| `Screening:Sources:UN:Url`, `Screening:Sources:OFAC:Url` | official UN consolidated XML and OFAC SDN XML | Where to download each list |
+| `Screening:Sources:UN:Path`, `Screening:Sources:OFAC:Path` | unset | Read the list from a local file instead of downloading it (offline installs, tests) |
+| `Screening:MatchThreshold` | `0.88` | Minimum name similarity (0–1) for a possible match |
+| `Risk:SyncScreeningFactorsOnStartup` | `true` | At startup, add the `SANCTIONS_MATCH`, `WATCHLIST_MATCH` and `PEP_MATCH` factors to risk models that predate screening, as a new audited version; tenants that ever had one of them are left alone |
+
 ### Vertical-slice E2E tests
 
 With compose Postgres running (default `localhost:5432`, user/password `aegis` / `aegis_dev_password`):
