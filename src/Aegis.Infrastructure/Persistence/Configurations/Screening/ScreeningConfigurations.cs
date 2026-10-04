@@ -91,6 +91,8 @@ public sealed class ScreeningMatchConfiguration : IEntityTypeConfiguration<Scree
         builder.Property(x => x.ReviewedBy).HasMaxLength(200);
         builder.Property(x => x.ReviewReason).HasMaxLength(ScreeningLimits.ReviewReasonMaxLength);
         builder.Property(x => x.AlertId).HasColumnName("alert_id");
+        // A uint row version maps to Postgres' system column xmin, so two reviewers cannot both decide.
+        builder.Property<uint>("xmin").IsRowVersion();
         builder.Property(x => x.Subject).HasColumnName("subject_json").HasColumnType("jsonb")
             .HasConversion(v => JsonColumn.Write(v), v => JsonColumn.Read<WatchlistSubjectJson>(v).ToSubject())
             .Metadata.SetValueComparer(new Microsoft.EntityFrameworkCore.ChangeTracking.ValueComparer<WatchlistSubject>(

@@ -48,6 +48,6 @@ public sealed class ScreeningMatchTests
     {
         var match = NewMatch();
         match.MarkFalsePositive("user-1", "Different date of birth");
-        Assert.Throws<InvalidOperationException>(() => match.Confirm("user-2", "Changed my mind", Guid.NewGuid()));
+        Assert.Throws<ScreeningMatchAlreadyReviewedException>(() => match.Confirm("user-2", "Changed my mind", Guid.NewGuid()));
     }
 }

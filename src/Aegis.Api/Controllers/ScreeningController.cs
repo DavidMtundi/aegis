@@ -202,7 +202,7 @@ public sealed class ScreeningController : ControllerBase
             var match = await _screening.ReviewAsync(_tenant.TenantId, id, decision, request.Reason, Actor(), ct);
             return match is null ? NotFound() : Ok(ToSummary(match));
         }
-        catch (InvalidOperationException ex)
+        catch (ScreeningMatchAlreadyReviewedException ex)
         {
             return Conflict(ex.Message);
         }

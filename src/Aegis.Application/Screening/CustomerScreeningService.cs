@@ -30,7 +30,7 @@ public interface ICustomerScreeningService
 
     /// <returns>Null when the match does not exist in the tenant.</returns>
     /// <exception cref="ArgumentException">The reason is blank.</exception>
-    /// <exception cref="InvalidOperationException">The match was already reviewed.</exception>
+    /// <exception cref="ScreeningMatchAlreadyReviewedException">The match was already reviewed, possibly concurrently.</exception>
     Task<ScreeningMatch?> ReviewAsync(
         TenantId tenantId, Guid matchId, ScreeningDecision decision, string reason, RiskActor actor,
         CancellationToken cancellationToken = default);
@@ -151,7 +151,14 @@ public sealed class CustomerScreeningService : ICustomerScreeningService
             AuditPayload.Json(new { status = match.Status.ToString(), reason = match.ReviewReason, alertId = match.AlertId }),
             decision == ScreeningDecision.CONFIRM ? "Screening match confirmed" : "Screening match marked false positive",
             actor.CorrelationId), cancellationToken);
-        await _uow.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _uow.SaveChangesAsync(cancellationToken);
+        }
+        catch (ConcurrencyConflictException ex)
+        {
+            throw new ScreeningMatchAlreadyReviewedException("This match was reviewed by someone else. Reload to see the decision.", ex);
+        }
 
         if (decision == ScreeningDecision.CONFIRM)
             await _risk.TryRecalculateAsync(tenantId, match.CustomerId, RiskTriggers.ScreeningConfirmed, actor, cancellationToken);

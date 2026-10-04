@@ -69,7 +69,7 @@ public sealed class ScreeningMatch : AggregateRoot
     private void Review(ScreeningMatchStatus status, string reviewer, string reason)
     {
         if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("A review reason is required.", nameof(reason));
-        if (Status != ScreeningMatchStatus.PENDING_REVIEW) throw new InvalidOperationException($"Match is already {Status}.");
+        if (Status != ScreeningMatchStatus.PENDING_REVIEW) throw new ScreeningMatchAlreadyReviewedException($"Match is already {Status}.");
         Status = status;
         ReviewedBy = reviewer;
         ReviewReason = reason.Trim();
