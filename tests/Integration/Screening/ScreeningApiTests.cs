@@ -31,6 +31,19 @@ public sealed class ScreeningApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Manual_refresh_is_audited_with_each_sources_outcome()
+    {
+        var audit = await _fx.AdminClient.GetFromJsonAsync<JsonElement>("/api/v1/audit-events?eventType=SCREENING_LIST_REFRESHED");
+        var refreshed = audit.GetProperty("items")[0];
+        using var after = JsonDocument.Parse(refreshed.GetProperty("afterState").GetString()!);
+        var results = after.RootElement.GetProperty("results").EnumerateArray().ToDictionary(
+            r => r.GetProperty("source").GetString()!, r => r);
+        Assert.Equal(4, results["UN"].GetProperty("entryCount").GetInt32());
+        Assert.Equal(2, results["OFAC"].GetProperty("entryCount").GetInt32());
+        Assert.Contains(results["UN"].GetProperty("status").GetString(), new[] { "LOADED", "UNCHANGED" });
+    }
+
+    [Fact]
     public async Task Creating_a_listed_customer_records_a_pending_match()
     {
         var customerId = await CreateIndividualAsync("Zephaniah", "Mbwana", "1978-04-28");

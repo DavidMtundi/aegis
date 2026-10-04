@@ -95,6 +95,17 @@ public sealed class ScreeningController : ControllerBase
         var results = new List<WatchlistRefreshResult>();
         foreach (var source in _refresher.Sources) results.Add(await _refresher.RefreshAsync(source, ct));
 
+        await _audit.AppendAsync(AuditEvent.Create(
+            _tenant.TenantId.Value, AuditEventTypes.SCREENING_LIST_REFRESHED, "GlobalWatchlist",
+            string.Join(",", results.Select(r => r.Source)), _tenant.UserId.ToString(), _tenant.Roles.FirstOrDefault(), null,
+            AuditPayload.Json(new
+            {
+                results = results.Select(r => new { source = r.Source.ToString(), status = r.Status.ToString(), entryCount = r.EntryCount })
+            }),
+            "Screening lists refreshed: " + string.Join(", ", results.Select(r => $"{r.Source} {r.Status}")),
+            HttpContext.TraceIdentifier), ct);
+        await _uow.SaveChangesAsync(ct);
+
         var newMatches = 0;
         if (results.Any(r => r.Status == WatchlistRefreshStatus.LOADED))
             newMatches = (await _screening.ScreenTenantAsync(_tenant.TenantId, ScreeningTriggers.ListUpdated, Actor(), ct)).NewMatchIds.Count;
