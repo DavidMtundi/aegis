@@ -70,12 +70,17 @@ public sealed class FeatureCalculator : IFeatureCalculator
         var features = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
         {
             ["currency"] = currency,
-            ["counterparty_country"] = triggering?.CounterpartyCountry?.Trim().ToUpperInvariant() ?? "",
-            ["transaction_amount"] = triggering?.Amount.Amount ?? 0m
+            ["counterparty_country"] = CountryOf(triggering),
+            ["transaction_amount"] = triggering?.Amount.Amount ?? 0m,
+            ["transaction_type"] = triggering?.TransactionType.ToString() ?? "",
+            ["direction"] = triggering?.Direction.ToString() ?? "",
+            ["channel"] = triggering?.Channel.ToString() ?? ""
         };
         AddAggregates(features, day, "_24h", includeFlow: false);
         AddAggregates(features, hour, "_1h", includeFlow: true, includeTotals: false);
         AddAggregates(features, windowed, "", includeFlow: true);
+        AddDayPatterns(features, day);
+        AddHistory(features, windowed, triggering, asOfTimestamp, window);
 
         var ids = windowed.Select(t => t.Id.ToString()).ToList();
         if (triggering is not null && !ids.Contains(triggering.Id.ToString()))
@@ -88,6 +93,58 @@ public sealed class FeatureCalculator : IFeatureCalculator
 
     private static List<CanonicalTransaction> Since(IEnumerable<CanonicalTransaction> txs, DateTimeOffset start)
         => txs.Where(t => t.Timestamp >= start).ToList();
+
+    private static string CountryOf(CanonicalTransaction? tx) => tx?.CounterpartyCountry?.Trim().ToUpperInvariant() ?? "";
+
+    /// <summary>Round amounts are exact multiples of 10,000 in the transaction currency.</summary>
+    private static bool IsRound(decimal amount) => amount >= 10_000m && amount % 10_000m == 0m;
+
+    private static void AddDayPatterns(IDictionary<string, object> features, IReadOnlyList<CanonicalTransaction> day)
+    {
+        var cash = day.Where(t => t.TransactionType == TransactionType.CASH_DEPOSIT).ToList();
+        features["cash_deposit_count_24h"] = cash.Count;
+        features["cash_deposit_sum_24h"] = cash.Sum(t => t.Amount.Amount);
+        features["cash_deposit_max_24h"] = cash.Count == 0 ? 0m : cash.Max(t => t.Amount.Amount);
+        features["round_amount_count_24h"] = day.Count(t => IsRound(t.Amount.Amount));
+        features["distinct_account_count_24h"] = day.Select(t => t.AccountId).Distinct().Count();
+    }
+
+    /// <summary>
+    /// Gaps and baselines within the rule window. With no earlier activity the gap features equal
+    /// the window length, so "dormant for N days" rules need a window of at least N days.
+    /// </summary>
+    private static void AddHistory(
+        IDictionary<string, object> features,
+        IReadOnlyList<CanonicalTransaction> windowed,
+        CanonicalTransaction? triggering,
+        DateTimeOffset asOf,
+        TimeSpan window)
+    {
+        var windowDays = Days(window);
+        features["distinct_counterparty_country_count"] = windowed
+            .Select(CountryOf).Where(c => c.Length > 0).Distinct().Count();
+
+        var earlier = windowed.Where(t => t.Timestamp <= asOf && !ReferenceEquals(t, triggering)).ToList();
+        features["days_since_previous_transaction"] = earlier.Count == 0
+            ? windowDays
+            : Days(asOf - earlier.Max(t => t.Timestamp));
+        features["days_since_first_transaction"] = windowed.Count == 0 ? 0m : Days(asOf - windowed.Min(t => t.Timestamp));
+
+        var dayStart = asOf - Day;
+        var beforeDay = windowed.Where(t => t.Timestamp < dayStart).ToList();
+        var burstStart = windowed.Where(t => t.Timestamp >= dayStart).Select(t => t.Timestamp).DefaultIfEmpty(asOf).Min();
+        features["dormant_days_before_24h"] = beforeDay.Count == 0
+            ? windowDays
+            : Days(burstStart - beforeDay.Max(t => t.Timestamp));
+
+        var baselineDays = windowDays - 1m;
+        var baseline = baselineDays <= 0m ? 0m : beforeDay.Sum(t => t.Amount.Amount) / baselineDays;
+        var lastDay = windowed.Where(t => t.Timestamp >= dayStart).Sum(t => t.Amount.Amount);
+        features["daily_average_sum"] = Math.Round(baseline, 2);
+        features["sum_24h_vs_daily_average"] = baseline <= 0m ? 0m : Math.Round(lastDay / baseline, 2);
+    }
+
+    private static decimal Days(TimeSpan span) => Math.Round((decimal)span.TotalDays, 2);
 
     private static void AddAggregates(
         IDictionary<string, object> features,
