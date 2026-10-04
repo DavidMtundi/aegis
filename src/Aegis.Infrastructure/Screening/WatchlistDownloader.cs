@@ -32,11 +32,8 @@ public sealed class WatchlistDownloader : IWatchlistDownloader
 
         var url = _config[$"Screening:Sources:{source}:Url"];
         if (string.IsNullOrWhiteSpace(url)) url = DefaultUrls[source];
-        using var response = await _http.CreateClient(HttpClientName)
-            .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using var response = await _http.CreateClient(HttpClientName).GetAsync(url, cancellationToken);
         response.EnsureSuccessStatusCode();
-        if (response.Content.Headers.ContentLength > MaxBytes)
-            throw new InvalidOperationException($"{source} list is larger than {MaxBytes / 1024 / 1024} MB.");
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
 }
