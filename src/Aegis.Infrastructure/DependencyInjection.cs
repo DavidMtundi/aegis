@@ -21,6 +21,7 @@ using Aegis.Modules.Features.Application;
 using Aegis.Modules.Identity.Application;
 using Aegis.Modules.Risk.Application;
 using Aegis.Modules.Screening.Application;
+using Aegis.Modules.Screening.Domain;
 using Aegis.Modules.Transactions.Application;
 using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
@@ -75,6 +76,11 @@ public static class DependencyInjection
         services.AddScoped<IWatchlistDownloader, Screening.WatchlistDownloader>();
         services.AddScoped<IWatchlistRefresher, WatchlistRefresher>();
         services.AddSingleton<IGlobalWatchlist, Screening.GlobalWatchlistCache>();
+        services.AddSingleton(sp => new ScreeningOptions(
+            sp.GetRequiredService<IConfiguration>().GetValue("Screening:MatchThreshold", WatchlistIndex.DefaultThreshold)));
+        services.AddScoped<IScreeningCandidateReader, Screening.ScreeningCandidateReader>();
+        services.AddScoped<ICustomerScreeningService, CustomerScreeningService>();
+        services.AddHostedService<Screening.WatchlistRefreshService>();
         services.AddSingleton(sp =>
         {
             var config = sp.GetRequiredService<IConfiguration>();

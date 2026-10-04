@@ -91,7 +91,9 @@ public sealed class DashboardQueries : IDashboardQueries
             Trend: DashboardMath.FillTrend(trendRows.ToDictionary(r => r.Day, r => r.Count), now, _options.TrendDays),
             ByRule: ruleCounts.Select(r => rules.TryGetValue(r.RuleId, out var rule)
                     ? new RuleAlertStats(r.RuleId, rule.Code, rule.Name, r.Total, r.Dismissed, DashboardMath.Rate(r.Dismissed, r.Total))
-                    : new RuleAlertStats(r.RuleId, "", "Unknown rule", r.Total, r.Dismissed, DashboardMath.Rate(r.Dismissed, r.Total)))
+                    : r.RuleId == ScreeningAlertSource.RuleId
+                        ? new RuleAlertStats(r.RuleId, "", "Confirmed screening matches", r.Total, r.Dismissed, DashboardMath.Rate(r.Dismissed, r.Total))
+                        : new RuleAlertStats(r.RuleId, "", "Unknown rule", r.Total, r.Dismissed, DashboardMath.Rate(r.Dismissed, r.Total)))
                 .ToList());
     }
 

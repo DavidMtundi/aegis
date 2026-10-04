@@ -29,6 +29,7 @@ public static class AuditEventTypes
     public const string RISK_MODEL_UPDATED = nameof(RISK_MODEL_UPDATED);
     public const string SCREENING_MATCH_CREATED = nameof(SCREENING_MATCH_CREATED);
     public const string SCREENING_MATCH_RESOLVED = nameof(SCREENING_MATCH_RESOLVED);
+    public const string SCREENING_LIST_UPLOADED = nameof(SCREENING_LIST_UPLOADED);
     
     public const string CUSTOMER_CREATED = nameof(CUSTOMER_CREATED);
     public const string CUSTOMER_UPDATED = nameof(CUSTOMER_UPDATED);
