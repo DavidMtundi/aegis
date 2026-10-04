@@ -50,7 +50,8 @@ public static class DependencyInjection
         services.AddScoped<ITransactionReadPort>(sp => sp.GetRequiredService<TransactionRepository>());
         services.AddScoped<IAmlRuleRepository, AmlRuleRepository>();
         services.AddScoped<IAmlRuleVersionRepository, AmlRuleVersionRepository>();
-        services.AddScoped<IStructuringRuleSeeder, StructuringRuleSeeder>();
+        services.AddScoped<IDefaultRuleSeeder, DefaultRuleSeeder>();
+        services.AddHostedService<DefaultRuleSyncService>();
         services.AddScoped<IAlertRepository, AlertRepository>();
         services.AddScoped<IAlertService, AlertService>();
         services.AddScoped<ICaseRepository, CaseRepository>();

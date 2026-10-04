@@ -37,6 +37,8 @@ public interface IAlertService
     /// AML may return TRIGGERED many times; this decides create vs return existing.
     /// Dedupe bucket uses the UTC calendar date of <paramref name="bucketTimestamp"/>
     /// (prefer the triggering transaction's business Timestamp so ingest delay does not shift the bucket).
+    /// When the rule's <paramref name="lookback"/> reaches into earlier days (capped at 7), an alert already raised
+    /// in one of those days is returned instead, so a window that stays true does not alert again each day.
     /// Does not call SaveChanges — caller owns the unit of work.
     /// </summary>
     Task<AlertUpsertResult> CreateOrGetAsync(
@@ -46,6 +48,7 @@ public interface IAlertService
         AlertSeverity severity,
         int riskScore,
         DateTimeOffset bucketTimestamp,
+        TimeSpan lookback = default,
         CancellationToken cancellationToken = default);
 }
 

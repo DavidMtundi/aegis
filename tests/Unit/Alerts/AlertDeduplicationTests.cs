@@ -115,4 +115,58 @@ public sealed class AlertDeduplicationTests
         Assert.NotEqual(first.AlertId, third.AlertId);
         Assert.Equal(2, repo.Items.Count);
     }
+
+    private static readonly AlertEvidence Evidence = new() { RuleName = "Structuring", RuleVersionNumber = 1 };
+
+    private static async Task<AlertUpsertResult> FireAsync(
+        AlertService service, TenantId tenant, RuleEvaluationResult triggered, DateTimeOffset at, TimeSpan lookback)
+        => await service.CreateOrGetAsync(tenant, triggered, Evidence, AlertSeverity.HIGH, 80, at, lookback);
+
+    [Fact]
+    public async Task A_lookback_reaching_into_an_earlier_day_reuses_that_days_alert()
+    {
+        var service = new AlertService(new InMemoryAlertRepository());
+        var tenant = new TenantId(Guid.NewGuid());
+        var triggered = Triggered(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid().ToString());
+        var day = new DateTimeOffset(2026, 9, 23, 15, 0, 0, TimeSpan.Zero);
+
+        var burst = await FireAsync(service, tenant, triggered, day, TimeSpan.FromHours(24));
+        var nextMorning = await FireAsync(service, tenant, triggered, day.AddHours(18), TimeSpan.FromHours(24));
+        var twoDaysLater = await FireAsync(service, tenant, triggered, day.AddHours(49), TimeSpan.FromHours(24));
+
+        Assert.False(nextMorning.WasCreated);
+        Assert.Equal(burst.AlertId, nextMorning.AlertId);
+        Assert.True(twoDaysLater.WasCreated);
+    }
+
+    [Fact]
+    public async Task Without_a_lookback_each_day_gets_its_own_alert()
+    {
+        var service = new AlertService(new InMemoryAlertRepository());
+        var tenant = new TenantId(Guid.NewGuid());
+        var triggered = Triggered(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid().ToString());
+        var day = new DateTimeOffset(2026, 9, 23, 23, 0, 0, TimeSpan.Zero);
+
+        var first = await FireAsync(service, tenant, triggered, day, TimeSpan.Zero);
+        var second = await FireAsync(service, tenant, triggered, day.AddHours(2), TimeSpan.FromHours(1));
+
+        Assert.True(first.WasCreated);
+        Assert.True(second.WasCreated);
+    }
+
+    [Fact]
+    public async Task Long_lookbacks_only_suppress_repeats_for_seven_days()
+    {
+        var service = new AlertService(new InMemoryAlertRepository());
+        var tenant = new TenantId(Guid.NewGuid());
+        var triggered = Triggered(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid().ToString());
+        var day = new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero);
+
+        var first = await FireAsync(service, tenant, triggered, day, TimeSpan.FromDays(30));
+        var fiveDays = await FireAsync(service, tenant, triggered, day.AddDays(5), TimeSpan.FromDays(30));
+        var eightDays = await FireAsync(service, tenant, triggered, day.AddDays(8), TimeSpan.FromDays(30));
+
+        Assert.Equal(first.AlertId, fiveDays.AlertId);
+        Assert.True(eightDays.WasCreated);
+    }
 }

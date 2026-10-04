@@ -23,7 +23,8 @@ public interface IAmlRuleVersionRepository
     Task AddAsync(AmlRuleVersion version, CancellationToken cancellationToken = default);
 }
 
-public interface IStructuringRuleSeeder
+public interface IDefaultRuleSeeder
 {
-    Task EnsureSeededAsync(TenantId tenantId, CancellationToken cancellationToken = default);
+    /// <summary>Adds any <see cref="DefaultRuleCatalog"/> rule the tenant lacks, active. Returns the codes added.</summary>
+    Task<IReadOnlyList<string>> EnsureSeededAsync(TenantId tenantId, CancellationToken cancellationToken = default);
 }

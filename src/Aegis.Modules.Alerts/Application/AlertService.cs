@@ -6,6 +6,9 @@ using Aegis.Shared.Domain;
 
 public sealed class AlertService : IAlertService
 {
+    /// <summary>Longest stretch over which a still-true windowed condition is treated as the same activity.</summary>
+    public static readonly TimeSpan MaxSuppression = TimeSpan.FromDays(7);
+
     private readonly IAlertRepository _alerts;
 
     public AlertService(IAlertRepository alerts) => _alerts = alerts;
@@ -17,6 +20,7 @@ public sealed class AlertService : IAlertService
         AlertSeverity severity,
         int riskScore,
         DateTimeOffset bucketTimestamp,
+        TimeSpan lookback = default,
         CancellationToken cancellationToken = default)
     {
         if (!triggered.IsTriggered)
@@ -41,6 +45,19 @@ public sealed class AlertService : IAlertService
         if (existing is not null)
         {
             return new AlertUpsertResult(existing.Id, WasCreated: false);
+        }
+
+        var suppressFrom = (bucketTimestamp - (lookback > MaxSuppression ? MaxSuppression : lookback)).UtcDateTime.Date;
+        for (var day = bucketTimestamp.UtcDateTime.Date.AddDays(-1); day >= suppressFrom; day = day.AddDays(-1))
+        {
+            var earlierKey = AlertDeduplicationKey.Build(
+                tenantId, triggered.RuleId, triggered.RuleVersionId, focusType, triggered.FocusEntityId,
+                new DateTimeOffset(day, TimeSpan.Zero));
+            var earlier = await _alerts.GetByTenantAndDeduplicationKeyAsync(tenantId, earlierKey, cancellationToken);
+            if (earlier is not null)
+            {
+                return new AlertUpsertResult(earlier.Id, WasCreated: false);
+            }
         }
 
         var alert = Alert.Create(
