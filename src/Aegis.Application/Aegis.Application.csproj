@@ -15,6 +15,7 @@
     <ProjectReference Include="..\Aegis.Modules.Identity\Aegis.Modules.Identity.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Cases\Aegis.Modules.Cases.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Risk\Aegis.Modules.Risk.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Screening\Aegis.Modules.Screening.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
