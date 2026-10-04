@@ -62,6 +62,45 @@ public sealed class WatchlistRefresherTests
         Assert.Equal("Not an OFAC SDN list.", result.Error);
     }
 
+    [Fact]
+    public async Task Download_timeout_without_caller_cancellation_is_reported_as_failure()
+    {
+        var refresher = new WatchlistRefresher(new ThrowingDownloader(new TaskCanceledException("timed out")), new FakeWatchlistRepository(), NullLogger<WatchlistRefresher>.Instance);
+
+        var result = await refresher.RefreshAsync(WatchlistSource.UN, CancellationToken.None);
+
+        Assert.Equal(WatchlistRefreshStatus.FAILED, result.Status);
+        Assert.Equal("timed out", result.Error);
+    }
+
+    [Fact]
+    public async Task Caller_cancellation_is_not_swallowed()
+    {
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var refresher = new WatchlistRefresher(new ThrowingDownloader(new TaskCanceledException()), new FakeWatchlistRepository(), NullLogger<WatchlistRefresher>.Instance);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => refresher.RefreshAsync(WatchlistSource.UN, cts.Token));
+    }
+
+    [Fact]
+    public async Task A_list_with_no_entries_is_rejected()
+    {
+        var repo = new FakeWatchlistRepository();
+        var refresher = new WatchlistRefresher(new FakeDownloader("<CONSOLIDATED_LIST><INDIVIDUALS/><ENTITIES/></CONSOLIDATED_LIST>"u8.ToArray()), repo, NullLogger<WatchlistRefresher>.Instance);
+
+        var result = await refresher.RefreshAsync(WatchlistSource.UN);
+
+        Assert.Equal(WatchlistRefreshStatus.FAILED, result.Status);
+        Assert.Contains("0 entries", result.Error);
+        Assert.Empty(repo.Loads);
+    }
+
+    private sealed class ThrowingDownloader(Exception exception) : IWatchlistDownloader
+    {
+        public Task<byte[]> DownloadAsync(WatchlistSource source, CancellationToken cancellationToken) => Task.FromException<byte[]>(exception);
+    }
+
     private sealed class FakeDownloader(byte[] bytes) : IWatchlistDownloader
     {
         public Task<byte[]> DownloadAsync(WatchlistSource source, CancellationToken cancellationToken) => Task.FromResult(bytes);

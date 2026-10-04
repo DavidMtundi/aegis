@@ -8,7 +8,7 @@ using Microsoft.Extensions.Configuration;
 public sealed class WatchlistDownloader : IWatchlistDownloader
 {
     public const string HttpClientName = "watchlists";
-    private const long MaxBytes = 100 * 1024 * 1024;
+    public const long MaxBytes = 100 * 1024 * 1024;
 
     private static readonly Dictionary<WatchlistSource, string> DefaultUrls = new()
     {
@@ -30,7 +30,8 @@ public sealed class WatchlistDownloader : IWatchlistDownloader
         var path = _config[$"Screening:Sources:{source}:Path"];
         if (!string.IsNullOrWhiteSpace(path)) return await File.ReadAllBytesAsync(path, cancellationToken);
 
-        var url = _config[$"Screening:Sources:{source}:Url"] ?? DefaultUrls[source];
+        var url = _config[$"Screening:Sources:{source}:Url"];
+        if (string.IsNullOrWhiteSpace(url)) url = DefaultUrls[source];
         using var response = await _http.CreateClient(HttpClientName)
             .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();

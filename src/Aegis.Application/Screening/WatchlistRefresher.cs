@@ -66,7 +66,7 @@ public sealed class WatchlistRefresher : IWatchlistRefresher
             _logger.LogInformation("Loaded {Count} {Source} watchlist entries", parsed.Subjects.Count, source);
             return new WatchlistRefreshResult(source, WatchlistRefreshStatus.LOADED, parsed.Subjects.Count, null);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             _logger.LogError(ex, "Refreshing the {Source} watchlist failed", source);
             return Failed(source, ex.Message);

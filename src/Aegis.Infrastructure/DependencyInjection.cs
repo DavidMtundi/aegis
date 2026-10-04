@@ -67,7 +67,11 @@ public static class DependencyInjection
         services.AddScoped<IWatchlistRepository, WatchlistRepository>();
         services.AddScoped<ITenantWatchlistRepository, TenantWatchlistRepository>();
         services.AddScoped<IScreeningMatchRepository, ScreeningMatchRepository>();
-        services.AddHttpClient(Screening.WatchlistDownloader.HttpClientName, c => c.Timeout = TimeSpan.FromMinutes(3));
+        services.AddHttpClient(Screening.WatchlistDownloader.HttpClientName, c =>
+        {
+            c.Timeout = TimeSpan.FromMinutes(3);
+            c.MaxResponseContentBufferSize = Screening.WatchlistDownloader.MaxBytes;
+        });
         services.AddScoped<IWatchlistDownloader, Screening.WatchlistDownloader>();
         services.AddScoped<IWatchlistRefresher, WatchlistRefresher>();
         services.AddSingleton<IGlobalWatchlist, Screening.GlobalWatchlistCache>();

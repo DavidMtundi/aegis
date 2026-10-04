@@ -13,7 +13,7 @@ public sealed class GlobalWatchlistCache : IGlobalWatchlist
 {
     private readonly IServiceScopeFactory _scopes;
     private readonly SemaphoreSlim _lock = new(1, 1);
-    private (DateTimeOffset? LoadedAt, WatchlistIndex Index) _current = (null, new WatchlistIndex(Array.Empty<WatchlistSubject>()));
+    private Snapshot _current = new(null, new WatchlistIndex(Array.Empty<WatchlistSubject>()));
 
     public GlobalWatchlistCache(IServiceScopeFactory scopes) => _scopes = scopes;
 
@@ -22,18 +22,23 @@ public sealed class GlobalWatchlistCache : IGlobalWatchlist
         await using var scope = _scopes.CreateAsyncScope();
         var lists = scope.ServiceProvider.GetRequiredService<IWatchlistRepository>();
         var loadedAt = await lists.GetLastLoadedAtAsync(cancellationToken);
-        if (loadedAt == _current.LoadedAt) return _current.Index;
+        var current = Volatile.Read(ref _current);
+        if (loadedAt == current.LoadedAt) return current.Index;
 
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            if (loadedAt != _current.LoadedAt)
-                _current = (loadedAt, new WatchlistIndex(await lists.ListSubjectsAsync(cancellationToken)));
-            return _current.Index;
+            current = Volatile.Read(ref _current);
+            if (loadedAt == current.LoadedAt) return current.Index;
+            current = new Snapshot(loadedAt, new WatchlistIndex(await lists.ListSubjectsAsync(cancellationToken)));
+            Volatile.Write(ref _current, current);
+            return current.Index;
         }
         finally
         {
             _lock.Release();
         }
     }
+
+    private sealed record Snapshot(DateTimeOffset? LoadedAt, WatchlistIndex Index);
 }
