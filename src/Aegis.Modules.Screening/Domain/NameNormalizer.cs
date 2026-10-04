@@ -11,6 +11,9 @@ public static class NameNormalizer
         "LTD", "LIMITED", "CO", "COMPANY", "INC", "LLC", "PLC", "CORP", "CORPORATION", "SA", "GMBH", "THE"
     };
 
+    /// <summary>Removed rather than split on, so "Ng'ang'a" and "Nganga" are the same token.</summary>
+    private static readonly HashSet<char> Apostrophes = new() { '\'', '\u2019', '`' };
+
     /// <summary>Upper-case tokens without diacritics, punctuation, titles or company suffixes.</summary>
     public static IReadOnlyList<string> Tokens(string? name)
     {
@@ -19,7 +22,7 @@ public static class NameNormalizer
         var builder = new StringBuilder(name.Length);
         foreach (var ch in name.Normalize(NormalizationForm.FormD))
         {
-            if (CharUnicodeInfo.GetUnicodeCategory(ch) == UnicodeCategory.NonSpacingMark) continue;
+            if (CharUnicodeInfo.GetUnicodeCategory(ch) == UnicodeCategory.NonSpacingMark || Apostrophes.Contains(ch)) continue;
             builder.Append(char.IsLetterOrDigit(ch) ? char.ToUpperInvariant(ch) : ' ');
         }
 

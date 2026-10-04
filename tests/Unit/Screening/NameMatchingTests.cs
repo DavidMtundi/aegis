@@ -41,6 +41,16 @@ public sealed class NameMatchingTests
     public void Transliteration_variants_score_above_threshold()
         => Assert.True(Score("Mohammed Ali", "Muhammad Ali") >= WatchlistIndex.DefaultThreshold);
 
+    [Theory]
+    [InlineData("John Ng'ang'a Kamau")]
+    [InlineData("John Ng’ang’a Kamau")]
+    [InlineData("John Ng`ang`a Kamau")]
+    public void Apostrophes_are_dropped_not_split(string name)
+    {
+        Assert.Equal(new[] { "JOHN", "NGANGA", "KAMAU" }, NameNormalizer.Tokens(name));
+        Assert.True(Score(name, "John Nganga Kamau") >= WatchlistIndex.DefaultThreshold);
+    }
+
     [Fact]
     public void Different_surname_scores_below_threshold()
         => Assert.True(Score("John Smith", "John Kamau") < 0.8);
