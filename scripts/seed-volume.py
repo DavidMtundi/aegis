@@ -523,14 +523,19 @@ def screening(api, token, tag, customers, reviewer_token):
     status, res = api.upload("PUT", "/api/v1/screening/tenant-list", "file", f"{tag}-screening-list.csv", csv)
     if status != 200:
         raise SystemExit(f"Upload screening list: {status} {res}")
-    print(f"  screening: tenant list {res['entryCount']} entries, {res['newMatches']} new matches")
+    print(f"  screening: tenant list {res['entryCount']} entries, rescreen queued")
 
-    status, res = api.call("POST", "/api/v1/screening/lists/refresh", token=token)
-    if status != 200:
-        raise SystemExit(f"Refresh screening lists: {status} {res}")
-    loaded = {r["source"]: r for r in res["results"]}
-    print("  screening: " + ", ".join(f"{s} {r['status']} ({r['entryCount']})" for s, r in loaded.items())
-          + f", {res['newMatches']} new matches")
+    # The refresh downloads both lists inside the request; a slow upstream must not end the seed.
+    try:
+        status, res = api.call("POST", "/api/v1/screening/lists/refresh", token=token)
+    except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+        status, res = None, str(e)
+    loaded = {r["source"]: r for r in res["results"]} if status == 200 else {}
+    if status == 200:
+        print("  screening: " + ", ".join(f"{s} {r['status']} ({r['entryCount']})" for s, r in loaded.items())
+              + ", rescreen queued")
+    else:
+        print(f"  screening: list refresh failed ({status} {res}); continuing with the lists already loaded")
     if loaded.get("UN", {}).get("status") not in ("LOADED", "UNCHANGED"):
         print("  screening: UN list not loaded; the UN-listed customers will have no matches")
 
@@ -558,6 +563,12 @@ def screening(api, token, tag, customers, reviewer_token):
         if status == 403:
             status, _ = api.call("POST", path, {"reason": reason}, token=token)
         return status == 200
+
+    # Tenant-list matches come from the background rescreen, not the upload response.
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline and not (pending(people[0]["id"], "TENANT", "PEP")
+                                               and pending(people[3]["id"], "TENANT", "WATCHLIST")):
+        time.sleep(2)
 
     reviewed = [
         review(pending(people[0]["id"], "TENANT", "PEP"), "confirm", CONFIRM_REASON),
