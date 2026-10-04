@@ -5,6 +5,7 @@ using System.Text;
 using Aegis.Application.Dashboard;
 using Aegis.Application.Lookups;
 using Aegis.Application.Risk;
+using Aegis.Application.Screening;
 using Aegis.Application.Transactions;
 using Aegis.Infrastructure.Aml;
 using Aegis.Infrastructure.Auth;
@@ -66,6 +67,10 @@ public static class DependencyInjection
         services.AddScoped<IWatchlistRepository, WatchlistRepository>();
         services.AddScoped<ITenantWatchlistRepository, TenantWatchlistRepository>();
         services.AddScoped<IScreeningMatchRepository, ScreeningMatchRepository>();
+        services.AddHttpClient(Screening.WatchlistDownloader.HttpClientName, c => c.Timeout = TimeSpan.FromMinutes(3));
+        services.AddScoped<IWatchlistDownloader, Screening.WatchlistDownloader>();
+        services.AddScoped<IWatchlistRefresher, WatchlistRefresher>();
+        services.AddSingleton<IGlobalWatchlist, Screening.GlobalWatchlistCache>();
         services.AddSingleton(sp =>
         {
             var config = sp.GetRequiredService<IConfiguration>();
