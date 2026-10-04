@@ -26,6 +26,9 @@ public static class Permissions
     public const string AuditRead = "audit.read";
     public const string UserManage = "user.manage";
     public const string RiskManage = "risk.manage";
+    public const string ScreeningRead = "screening.read";
+    public const string ScreeningReview = "screening.review";
+    public const string ScreeningManage = "screening.manage";
 
     public static readonly IReadOnlyList<string> All = new[]
     {
@@ -33,7 +36,8 @@ public static class Permissions
         AlertRead, AlertAssign, AlertDismiss, AlertResolve, AlertEscalate,
         CaseRead, CaseCreate, CaseUpdate, CaseClose,
         RuleRead, RuleCreate, RuleActivate,
-        AuditRead, UserManage, RiskManage
+        AuditRead, UserManage, RiskManage,
+        ScreeningRead, ScreeningReview, ScreeningManage
     };
 }
 
@@ -45,7 +49,7 @@ public static class RolePermissions
     private static readonly string[] ViewerGrants =
     {
         Permissions.CustomerRead, Permissions.TransactionRead, Permissions.AlertRead,
-        Permissions.CaseRead, Permissions.RuleRead
+        Permissions.CaseRead, Permissions.RuleRead, Permissions.ScreeningRead
     };
 
     private static readonly string[] AnalystGrants = ViewerGrants.Concat(new[]
@@ -55,7 +59,10 @@ public static class RolePermissions
         Permissions.CaseCreate, Permissions.CaseUpdate, Permissions.CaseClose
     }).ToArray();
 
-    private static readonly string[] ReviewerGrants = AnalystGrants.Append(Permissions.AuditRead).ToArray();
+    private static readonly string[] ReviewerGrants = AnalystGrants
+        .Append(Permissions.AuditRead)
+        .Append(Permissions.ScreeningReview)
+        .ToArray();
 
     private static readonly Dictionary<string, HashSet<string>> RoleGrants = new(StringComparer.OrdinalIgnoreCase)
     {

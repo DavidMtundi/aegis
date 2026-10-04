@@ -5,6 +5,7 @@ using Aegis.Infrastructure.Persistence;
 using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Cases.Domain;
 using Aegis.Modules.Risk.Domain;
+using Aegis.Modules.Screening.Domain;
 using Aegis.Shared.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -145,6 +146,10 @@ public sealed class DashboardQueries : IDashboardQueries
 
         return new RiskMetrics(scored, Math.Max(0, customers - scored), DashboardMath.AllKeys<RiskBand>(byBand));
     }
+
+    public async Task<ScreeningMetrics> GetScreeningMetricsAsync(TenantId tenantId, CancellationToken cancellationToken = default)
+        => new(await _db.ScreeningMatches.AsNoTracking()
+            .CountAsync(m => m.TenantId == tenantId && m.Status == ScreeningMatchStatus.PENDING_REVIEW, cancellationToken));
 
     private static DateTimeOffset StartOfUtcDay(DateTimeOffset now)
     {

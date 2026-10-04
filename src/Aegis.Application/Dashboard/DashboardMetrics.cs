@@ -27,6 +27,8 @@ public sealed record TransactionMetrics(int ProcessedToday, int ProcessedLast7Da
 
 public sealed record RiskMetrics(int ScoredCustomers, int UnscoredCustomers, IReadOnlyDictionary<string, int> ByBand);
 
+public sealed record ScreeningMetrics(int PendingReview);
+
 /// <summary>Read-only aggregates for the operations dashboard (PRD §49). "Today" is the current UTC day.</summary>
 public interface IDashboardQueries
 {
@@ -34,6 +36,7 @@ public interface IDashboardQueries
     Task<CaseMetrics> GetCaseMetricsAsync(TenantId tenantId, DateTimeOffset now, CancellationToken cancellationToken = default);
     Task<TransactionMetrics> GetTransactionMetricsAsync(TenantId tenantId, DateTimeOffset now, CancellationToken cancellationToken = default);
     Task<RiskMetrics> GetRiskMetricsAsync(TenantId tenantId, CancellationToken cancellationToken = default);
+    Task<ScreeningMetrics> GetScreeningMetricsAsync(TenantId tenantId, CancellationToken cancellationToken = default);
 }
 
 public static class DashboardMath

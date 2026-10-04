@@ -42,6 +42,19 @@ public sealed class RolePermissionsTests
         Assert.Equal(expected, RolePermissions.Grants(new[] { RoleNames.Reviewer }, permission));
     }
 
+    [Theory]
+    [InlineData(RoleNames.Viewer, Permissions.ScreeningRead, true)]
+    [InlineData(RoleNames.Viewer, Permissions.ScreeningReview, false)]
+    [InlineData(RoleNames.Analyst, Permissions.ScreeningRead, true)]
+    [InlineData(RoleNames.Analyst, Permissions.ScreeningReview, false)]
+    [InlineData(RoleNames.Reviewer, Permissions.ScreeningReview, true)]
+    [InlineData(RoleNames.Reviewer, Permissions.ScreeningManage, false)]
+    [InlineData(RoleNames.Admin, Permissions.ScreeningManage, true)]
+    public void Screening_reads_for_all_reviews_for_reviewers_and_list_management_for_admins(string role, string permission, bool expected)
+    {
+        Assert.Equal(expected, RolePermissions.Grants(new[] { role }, permission));
+    }
+
     [Fact]
     public void Role_names_are_case_insensitive_and_unknown_roles_grant_nothing()
     {

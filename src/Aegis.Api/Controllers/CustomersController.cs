@@ -1,8 +1,10 @@
 namespace Aegis.Api.Controllers;
 
+using System.Globalization;
 using Aegis.Api.Authorization;
 using Aegis.Application.Lookups;
 using Aegis.Application.Risk;
+using Aegis.Application.Screening;
 using Aegis.Modules.Alerts.Application;
 using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Audit.Application;
@@ -12,6 +14,7 @@ using Aegis.Modules.Cases.Domain;
 using Aegis.Modules.Customers.Application;
 using Aegis.Modules.Customers.Domain;
 using Aegis.Modules.Risk.Domain;
+using Aegis.Modules.Screening.Domain;
 using Aegis.Modules.Transactions.Application;
 using Aegis.Shared.Domain;
 using Aegis.Shared.Persistence;
@@ -37,6 +40,7 @@ public sealed class CustomersController : ControllerBase
     private readonly IUnitOfWork _uow;
     private readonly ICustomerRiskService _risk;
     private readonly IDisplayNameLookup _names;
+    private readonly ICustomerScreeningService _screening;
 
     public CustomersController(
         ICustomerRepository customers,
@@ -48,9 +52,11 @@ public sealed class CustomersController : ControllerBase
         IAuditWriter audit,
         IUnitOfWork uow,
         ICustomerRiskService risk,
-        IDisplayNameLookup names)
+        IDisplayNameLookup names,
+        ICustomerScreeningService screening)
     {
         _names = names;
+        _screening = screening;
         _risk = risk;
         _customers = customers;
         _accounts = accounts;
@@ -68,7 +74,8 @@ public sealed class CustomersController : ControllerBase
         string? ExternalReference,
         string? FirstName,
         string? LastName,
-        string? LegalName);
+        string? LegalName,
+        string? DateOfBirth);
 
     public sealed record CreateAccountRequest(
         string AccountType,
@@ -86,7 +93,16 @@ public sealed class CustomersController : ControllerBase
         {
             if (string.IsNullOrWhiteSpace(request.FirstName) || string.IsNullOrWhiteSpace(request.LastName))
                 return BadRequest("FirstName and LastName are required for individuals.");
-            customer = Customer.CreateIndividual(_tenant.TenantId, request.ExternalReference, request.Country, request.FirstName, request.LastName);
+            DateOnly? dateOfBirth = null;
+            if (!string.IsNullOrWhiteSpace(request.DateOfBirth))
+            {
+                if (!DateOnly.TryParseExact(request.DateOfBirth, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dob)
+                    || dob > DateOnly.FromDateTime(DateTime.UtcNow))
+                    return BadRequest("DateOfBirth must be a past date in yyyy-MM-dd format.");
+                dateOfBirth = dob;
+            }
+            customer = Customer.CreateIndividual(
+                _tenant.TenantId, request.ExternalReference, request.Country, request.FirstName, request.LastName, dateOfBirth);
         }
         else if (string.Equals(request.Type, "BUSINESS", StringComparison.OrdinalIgnoreCase))
         {
@@ -114,6 +130,9 @@ public sealed class CustomersController : ControllerBase
         await _uow.SaveChangesAsync(ct);
         await _risk.TryRecalculateAsync(
             _tenant.TenantId, customer.Id, RiskTriggers.CustomerCreated,
+            new RiskActor(_tenant.UserId.ToString(), _tenant.Roles.FirstOrDefault(), HttpContext.TraceIdentifier), ct);
+        await _screening.TryScreenCustomerAsync(
+            _tenant.TenantId, customer.Id, ScreeningTriggers.CustomerCreated,
             new RiskActor(_tenant.UserId.ToString(), _tenant.Roles.FirstOrDefault(), HttpContext.TraceIdentifier), ct);
 
         return Created($"/api/v1/customers/{customer.Id}", new { id = customer.Id, type = customer.Type.ToString(), country = customer.Country });
@@ -264,6 +283,7 @@ public sealed class CustomersController : ControllerBase
         firstName = customer.FirstName,
         lastName = customer.LastName,
         legalName = customer.LegalName,
+        dateOfBirth = customer.DateOfBirth,
         status = customer.Status.ToString(),
         externalReference = customer.ExternalReference,
         riskBand
