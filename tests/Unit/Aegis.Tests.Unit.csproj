@@ -33,4 +33,8 @@
     <ProjectReference Include="..\..\src\Aegis.Modules.Screening\Aegis.Modules.Screening.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\Fixtures\screening\*.xml" LinkBase="Fixtures\screening" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
