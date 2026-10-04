@@ -65,6 +65,8 @@ public static class DependencyInjection
         services.AddScoped<IRiskBatchSource, RiskBatchSource>();
         services.AddScoped<IRiskBatchRecalculator, RiskBatchRecalculator>();
         services.AddHostedService<Risk.NightlyRiskBatchService>();
+        services.AddScoped<Screening.ScreeningRiskFactorSync>();
+        services.AddHostedService<Screening.ScreeningRiskFactorSyncService>();
         services.AddScoped<IWatchlistRepository, WatchlistRepository>();
         services.AddScoped<ITenantWatchlistRepository, TenantWatchlistRepository>();
         services.AddScoped<IScreeningMatchRepository, ScreeningMatchRepository>();

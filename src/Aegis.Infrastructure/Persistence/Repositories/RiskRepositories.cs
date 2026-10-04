@@ -6,6 +6,7 @@ using Aegis.Modules.Cases.Domain;
 using Aegis.Modules.Identity.Domain;
 using Aegis.Modules.Risk.Application;
 using Aegis.Modules.Risk.Domain;
+using Aegis.Modules.Screening.Domain;
 using Aegis.Shared.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -97,7 +98,15 @@ public sealed class RiskInputsReader : IRiskInputsReader
                     cancellationToken);
         }
 
-        return new RiskInputs(customer.Type.ToString(), customer.Country, alertFacts, suspiciousCases, transactionCounts, asOf);
+        var confirmed = await _db.ScreeningMatches.AsNoTracking()
+            .Where(m => m.TenantId == tenantId && m.CustomerId == customerId && m.Status == ScreeningMatchStatus.CONFIRMED)
+            .Select(m => m.Category)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return new RiskInputs(
+            customer.Type.ToString(), customer.Country, alertFacts, suspiciousCases, transactionCounts, asOf,
+            confirmed.Select(c => c.ToString()).ToList());
     }
 }
 

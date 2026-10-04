@@ -26,6 +26,9 @@ public static class RiskCalculator
             $"high/critical alert(s) in {f.WindowDays} days"),
         RiskFactorType.SUSPICIOUS_CASES => PerItem(f, inputs.SuspiciousCaseCount, "case(s) closed as suspicious or reported"),
         RiskFactorType.TRANSACTION_ACTIVITY => Activity(f, inputs),
+        RiskFactorType.SANCTIONS_MATCH => Screening(f, inputs, "SANCTIONS", "sanctions"),
+        RiskFactorType.PEP_MATCH => Screening(f, inputs, "PEP", "PEP"),
+        RiskFactorType.WATCHLIST_MATCH => Screening(f, inputs, "WATCHLIST", "watchlist"),
         _ => new RiskContribution(f.Type, 0, f.Weight, "unsupported factor")
     };
 
@@ -48,5 +51,11 @@ public static class RiskCalculator
         var threshold = Math.Max(1, f.Threshold ?? 1);
         var points = (int)Math.Round(f.Weight * Math.Min(1.0, (double)count / threshold), MidpointRounding.AwayFromZero);
         return new RiskContribution(f.Type, points, f.Weight, $"{count} transaction(s) in {window} days (full weight at {threshold})");
+    }
+
+    private static RiskContribution Screening(RiskFactorDefinition f, RiskInputs inputs, string category, string label)
+    {
+        var hit = inputs.ConfirmedScreeningCategories?.Contains(category, StringComparer.OrdinalIgnoreCase) == true;
+        return new RiskContribution(f.Type, hit ? f.Weight : 0, f.Weight, hit ? $"confirmed {label} match" : $"no confirmed {label} match");
     }
 }

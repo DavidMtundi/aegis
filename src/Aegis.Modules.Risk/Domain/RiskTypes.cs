@@ -9,7 +9,10 @@ public enum RiskFactorType
     OPEN_ALERTS,
     HIGH_SEVERITY_ALERTS,
     SUSPICIOUS_CASES,
-    TRANSACTION_ACTIVITY
+    TRANSACTION_ACTIVITY,
+    SANCTIONS_MATCH,
+    PEP_MATCH,
+    WATCHLIST_MATCH
 }
 
 public enum RiskBand
@@ -52,7 +55,8 @@ public sealed record RiskInputs(
     IReadOnlyList<RiskAlertFact> Alerts,
     int SuspiciousCaseCount,
     IReadOnlyDictionary<int, int> TransactionCounts,
-    DateTimeOffset AsOf);
+    DateTimeOffset AsOf,
+    IReadOnlyCollection<string>? ConfirmedScreeningCategories = null);
 
 public sealed record RiskContribution(RiskFactorType Type, int Points, int Weight, string Detail);
 

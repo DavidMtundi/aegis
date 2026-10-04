@@ -25,7 +25,7 @@ public sealed class CustomerRiskApiTests : IAsyncLifetime
         Assert.Equal("LOW", current.GetProperty("band").GetString());
         Assert.Equal(1, current.GetProperty("modelVersion").GetInt32());
         Assert.Equal("CUSTOMER_CREATED", current.GetProperty("trigger").GetString());
-        Assert.Equal(6, current.GetProperty("contributions").GetArrayLength());
+        Assert.Equal(9, current.GetProperty("contributions").GetArrayLength());
         Assert.Equal(1, risk.GetProperty("history").GetArrayLength());
     }
 
