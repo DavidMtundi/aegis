@@ -171,8 +171,10 @@ def main():
         types = (["BANK_ACCOUNT", "MERCHANT_ACCOUNT"] if business else ["MOBILE_WALLET", "BANK_ACCOUNT"]) + \
                 rnd.sample(["SACCO_ACCOUNT", "LOAN_ACCOUNT", "MOBILE_WALLET", "OTHER"], rnd.randint(0, 1))
         accounts = []
-        for j, acct_type in enumerate(types[: rnd.randint(1, 3)]):
-            ccy = local_ccy if j == 0 or rnd.random() < 0.8 else rnd.choice(["USD", "KES"])
+        multi = local_ccy == "KES" and rnd.random() < 0.15
+        types = (types + ["OTHER", "SACCO_ACCOUNT"])[:3] if multi else types[: rnd.randint(1, 3)]
+        for j, acct_type in enumerate(types):
+            ccy = local_ccy if j == 0 or multi or rnd.random() < 0.8 else rnd.choice(["USD", "KES"])
             status, a = api.call("POST", f"/api/v1/customers/{c['id']}/accounts",
                                  {"accountType": acct_type, "currency": ccy,
                                   "externalReference": f"{tag}-A{i:04d}-{j}"})
@@ -198,9 +200,19 @@ def main():
         return start + timedelta(days=day, hours=rnd.randint(hour_lo, hour_hi), minutes=rnd.randint(0, 59),
                                  seconds=rnd.randint(0, 59))
 
+    def is_kes(c):
+        return c["accounts"][0]["currency"] == "KES"
+
+    kes_individuals = [c for c in customers if is_kes(c) and not c["business"]]
+    quiet = rnd.sample(kes_individuals, min(24, len(kes_individuals) // 6))
+    newcomers = rnd.sample([c for c in kes_individuals if c not in quiet], min(14, len(kes_individuals) // 8))
+    join_day = {c["id"]: rnd.randint(max(0, args.days - 30), args.days - 12) for c in newcomers}
+
     for cust in customers:
+        if cust in quiet:
+            continue
         main_acct = cust["accounts"][0]
-        for day in range(args.days):
+        for day in range(join_day.get(cust["id"], 0), args.days):
             if cust["business"]:
                 for _ in range(rnd.choice([0, 1, 2, 2, 3, 3, 4])):
                     tx(cust, main_acct, rnd.uniform(500, 35000), "CREDIT", at(day), "MOBILE",
@@ -219,22 +231,107 @@ def main():
                     tx(cust, main_acct, rnd.uniform(2000, 40000), "CREDIT", at(day), "WIRE", "ONLINE",
                        rnd.choice(BENIGN_FOREIGN))
 
-    kes_customers = [c for c in customers if c["accounts"][0]["currency"] == "KES"]
-    suspects = rnd.sample(kes_customers, min(len(kes_customers), 60))
+    active = [c for c in customers if is_kes(c) and c not in quiet and c not in newcomers]
+    suspects = rnd.sample(active, min(len(active), 60))
     repeaters = suspects[:12]
 
-    def pattern_day():
+    def pattern_day(lo=0):
         if rnd.random() < 0.35:
-            return rnd.randint(max(0, args.days - 7), args.days - 1)
-        return rnd.randint(0, args.days - 1)
+            return rnd.randint(max(lo, args.days - 7), args.days - 1)
+        return rnd.randint(lo, args.days - 1)
+
+    def odd(lo, hi):
+        """An amount that is not a multiple of 10,000, so it only trips the rule being planted."""
+        amount = rnd.uniform(lo, hi)
+        return amount + 1234 if amount % 10000 < 1 else amount
 
     def structuring(cust, near_miss=False):
         acct, day = cust["accounts"][0], pattern_day()
-        t = at(day, 8, 12)
+        t, cash = at(day, 8, 12), rnd.random() < 0.5
         for _ in range(4 if near_miss else rnd.randint(5, 7)):
-            tx(cust, acct, rnd.choice([95000, 98000, 99000, 97500, rnd.uniform(90000, 99500)]), "CREDIT", t,
-               "CASH_DEPOSIT", rnd.choice(["BRANCH", "MOBILE"]))
+            tx(cust, acct, rnd.choice([95000, 98000, 99000, 97500, odd(90000, 99500)]), "CREDIT", t,
+               "CASH_DEPOSIT" if cash else "TRANSFER", "BRANCH" if cash else "MOBILE")
             t += timedelta(minutes=rnd.randint(10, 70))
+
+    def cash_structuring(cust):
+        acct, t = cust["accounts"][0], at(pattern_day(), 9, 14)
+        for _ in range(rnd.randint(3, 4)):
+            tx(cust, acct, odd(84000, 99000), "CREDIT", t, "CASH_DEPOSIT", "BRANCH")
+            t += timedelta(minutes=rnd.randint(30, 120))
+
+    def slow_structuring(cust):
+        acct, first = cust["accounts"][0], pattern_day()
+        first = min(first, args.days - 7)
+        for i in range(rnd.randint(13, 15)):
+            tx(cust, acct, odd(66000, 94000), "CREDIT", at(first + i // 2.4), "TRANSFER", "MOBILE")
+
+    def large_cash(cust):
+        kind = rnd.choice([("CASH_DEPOSIT", "CREDIT"), ("CASH_WITHDRAWAL", "DEBIT")])
+        tx(cust, cust["accounts"][0], odd(1_100_000, 3_000_000), kind[1], at(pattern_day(), 9, 16), kind[0], "BRANCH")
+
+    def large_value(cust):
+        tx(cust, cust["accounts"][0], odd(5_500_000, 20_000_000), rnd.choice(["CREDIT", "DEBIT"]),
+           at(pattern_day(), 9, 16), "WIRE", "ONLINE")
+
+    def rapid_24h(cust):
+        acct, t = cust["accounts"][0], at(pattern_day(), 6, 9)
+        amount = odd(550_000, 2_000_000)
+        tx(cust, acct, amount, "CREDIT", t, "EFT", "ONLINE")
+        out, parts = amount * rnd.uniform(0.92, 0.98), rnd.randint(2, 4)
+        for _ in range(parts):
+            t += timedelta(hours=rnd.uniform(2, 4))
+            tx(cust, acct, out / parts, "DEBIT", t, "TRANSFER", "MOBILE")
+
+    def velocity(cust):
+        day = pattern_day()
+        for _ in range(rnd.randint(22, 30)):
+            tx(cust, cust["accounts"][0], odd(300, 4000), rnd.choice(["CREDIT", "DEBIT"]), at(day, 0, 23),
+               "MOBILE", "MOBILE")
+
+    def round_amounts(cust):
+        acct, t = cust["accounts"][0], at(pattern_day(), 8, 12)
+        amounts = [rnd.choice([100_000, 150_000, 200_000])] + [rnd.choice([50_000, 60_000, 80_000]) for _ in range(rnd.randint(3, 5))]
+        for amount in amounts:
+            tx(cust, acct, amount, rnd.choice(["CREDIT", "DEBIT"]), t, "TRANSFER", "MOBILE")
+            t += timedelta(minutes=rnd.randint(20, 90))
+
+    def dormant_reactivation(cust):
+        acct = cust["accounts"][0]
+        tx(cust, acct, odd(500, 5000), "DEBIT", now - timedelta(days=rnd.uniform(70, 86)), "MOBILE", "MOBILE")
+        tx(cust, acct, odd(120_000, 800_000), "CREDIT", at(pattern_day(args.days - 12), 9, 18), "EFT", "ONLINE")
+
+    def dormant_spike(cust):
+        acct = cust["accounts"][0]
+        tx(cust, acct, odd(500, 5000), "DEBIT", now - timedelta(days=rnd.uniform(75, 88)), "MOBILE", "MOBILE")
+        t = at(pattern_day(args.days - 12), 8, 11)
+        for _ in range(rnd.randint(4, 5)):
+            tx(cust, acct, odd(65_000, 95_000), "CREDIT", t, "TRANSFER", "MOBILE")
+            t += timedelta(minutes=rnd.randint(30, 120))
+
+    def new_account_flight(cust):
+        acct, day = cust["accounts"][0], join_day[cust["id"]] + rnd.randint(1, 4)
+        amount = odd(600_000, 2_500_000)
+        tx(cust, acct, amount, "CREDIT", at(day, 9, 12), "EFT", "ONLINE")
+        out, parts = amount * rnd.uniform(0.85, 0.95), rnd.randint(2, 4)
+        for i in range(parts):
+            tx(cust, acct, out / parts, "DEBIT", at(day + 1 + i * 2, 9, 17), "TRANSFER", "MOBILE")
+
+    def multi_account(cust):
+        day = pattern_day()
+        for acct in cust["accounts"][:3]:
+            tx(cust, acct, odd(110_000, 220_000), rnd.choice(["CREDIT", "DEBIT"]), at(day, 9, 18), "TRANSFER", "ONLINE")
+
+    def geo_spread(cust):
+        day = min(pattern_day(), args.days - 5)
+        for i, country in enumerate(rnd.sample(BENIGN_FOREIGN, rnd.randint(4, 5))):
+            tx(cust, cust["accounts"][0], odd(5_000, 60_000), rnd.choice(["CREDIT", "DEBIT"]), at(day + i, 9, 18),
+               "WIRE", "ONLINE", country)
+
+    def behaviour_spike(cust):
+        acct, t = cust["accounts"][0], at(pattern_day(30), 9, 12)
+        for _ in range(rnd.randint(1, 2)):
+            tx(cust, acct, odd(210_000, 350_000), "CREDIT", t, "TRANSFER", "ONLINE")
+            t += timedelta(hours=rnd.uniform(1, 5))
 
     def rapid(cust):
         acct, day = cust["accounts"][0], pattern_day()
@@ -255,8 +352,23 @@ def main():
     for cust in repeaters:
         for fn in rnd.sample([structuring, rapid, geography], 2):
             fn(cust)
-    for cust in rnd.sample(kes_customers, 10):
+    for cust in rnd.sample(active, 10):
         structuring(cust, near_miss=True)
+
+    for i, cust in enumerate(quiet):
+        (dormant_reactivation if i % 2 == 0 else dormant_spike)(cust)
+    for cust in newcomers:
+        new_account_flight(cust)
+    multi_pool = [c for c in active if sum(a["currency"] == "KES" for a in c["accounts"]) >= 3]
+    for cust in rnd.sample(multi_pool, min(10, len(multi_pool))):
+        multi_account(cust)
+    individuals = [c for c in active if not c["business"]]
+    for fn, n, pool in [(cash_structuring, 12, active), (slow_structuring, 8, active), (large_cash, 10, active),
+                        (large_value, 6, [c for c in active if c["business"]]), (rapid_24h, 10, active),
+                        (velocity, 8, individuals), (round_amounts, 10, active), (geo_spread, 8, active),
+                        (behaviour_spike, 10, individuals)]:
+        for cust in rnd.sample(pool, min(n, len(pool))):
+            fn(cust)
 
     txs.sort(key=lambda t: t["timestamp"])
     print(f"  ingesting {len(txs)} transactions")
@@ -341,12 +453,13 @@ def main():
     api.call("POST", "/api/v1/risk/recalculate-all")
 
     if args.backdate:
-        backdate(args, tag, alerts, cases, rnd, now)
+        joined = {cid: start + timedelta(days=d, hours=-2) for cid, d in join_day.items()}
+        backdate(args, tag, alerts, cases, rnd, now, joined)
     print(f"Done. Sign in at http://localhost:3000/login with slug {args.slug}.")
     print(f"Team logins use the same password: " + ", ".join(u["email"] for u in users.values()))
 
 
-def backdate(args, tag, alerts, cases, rnd, now):
+def backdate(args, tag, alerts, cases, rnd, now, joined):
     stmts = []
     q = lambda s: "'" + s.replace("'", "''") + "'"
     cap = now - timedelta(minutes=5)
@@ -358,6 +471,9 @@ def backdate(args, tag, alerts, cases, rnd, now):
         WHERE "ExternalReference" LIKE {q(tag + '-C%')};""")
     stmts.append(f"""UPDATE customers.accounts a SET "OpenedAt" = c."CreatedAt", "CreatedAt" = c."CreatedAt"
         FROM customers.customers c WHERE a.customer_id = c."Id" AND c."ExternalReference" LIKE {q(tag + '-C%')};""")
+    for cid, ts in joined.items():
+        stmts.append(f"""UPDATE customers.customers SET "CreatedAt" = {q(iso(ts))} WHERE "Id" = {q(cid)};""")
+        stmts.append(f"""UPDATE customers.accounts SET "OpenedAt" = {q(iso(ts))}, "CreatedAt" = {q(iso(ts))} WHERE customer_id = {q(cid)};""")
 
     def shift_audit(entity_id, base, step_hours):
         return (f"""UPDATE audit.audit_events e SET "OccurredAt" = LEAST({q(iso(cap))}::timestamptz,
