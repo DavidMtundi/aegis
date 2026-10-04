@@ -34,6 +34,14 @@ chmod +x scripts/demo-seed.sh
 
 Then follow [`docs/runbooks/demo-walkthrough.md`](docs/runbooks/demo-walkthrough.md) in the console (login → alert → case → close → audit).
 
+For a tenant with realistic volume (team users, 300 customers, ~22k transactions over 60 days, worked alerts and cases):
+
+```bash
+python3 scripts/seed-volume.py --slug <tenant-slug> --email <admin-email> --backdate
+```
+
+`--backdate` writes to the local Docker Postgres (`aegis-postgres-1`) so alert and case ages span the 60 days; omit it against any shared database.
+
 ### Vertical-slice E2E tests
 
 With compose Postgres running (default `localhost:5432`, user/password `aegis` / `aegis_dev_password`):
