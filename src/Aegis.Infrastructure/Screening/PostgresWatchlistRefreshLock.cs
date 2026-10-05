@@ -16,8 +16,12 @@ public sealed class PostgresWatchlistRefreshLock : IWatchlistRefreshLock
     private readonly string _connectionString;
 
     public PostgresWatchlistRefreshLock(AegisDbContext db)
-        => _connectionString = db.Database.GetConnectionString()
+    {
+        var connectionString = db.Database.GetConnectionString()
             ?? throw new InvalidOperationException("The Aegis connection string is not configured.");
+        // Unpooled, so closing the connection always ends the session and with it any lock a failed unlock left behind.
+        _connectionString = new NpgsqlConnectionStringBuilder(connectionString) { Pooling = false }.ConnectionString;
+    }
 
     public async Task<IAsyncDisposable?> TryAcquireAsync(CancellationToken cancellationToken = default)
     {
