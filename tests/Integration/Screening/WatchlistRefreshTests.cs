@@ -26,7 +26,7 @@ public sealed class WatchlistRefreshTests : IAsyncLifetime
         Assert.Equal(2, ofac.EntryCount);
         Assert.Equal(WatchlistRefreshStatus.SKIPPED, (await refresher.RefreshAsync(WatchlistSource.UN)).Status);
 
-        var index = await scope.ServiceProvider.GetRequiredService<IGlobalWatchlist>().GetAsync();
+        var index = (await scope.ServiceProvider.GetRequiredService<IGlobalWatchlist>().GetAsync()).Index;
         Assert.Equal(6, index.Count);
     }
 }

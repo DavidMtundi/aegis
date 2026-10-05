@@ -25,7 +25,7 @@ public sealed class CustomerScreeningServiceTests
         var matches = new FakeMatches();
         var service = Service(customers, matches, new FakeUnitOfWork(matches, duplicate));
 
-        var outcome = await service.ScreenTenantAsync(Tenant, ScreeningTriggers.ListUpdated, RiskActor.System);
+        var outcome = await service.ScreenTenantAsync(Tenant, FakeGlobal.Empty, ScreeningTriggers.ListUpdated, RiskActor.System);
 
         Assert.Equal(3, outcome.Screened);
         Assert.Equal(2, outcome.NewMatchIds.Count);
@@ -56,8 +56,10 @@ public sealed class CustomerScreeningServiceTests
 
     private sealed class FakeGlobal : IGlobalWatchlist
     {
-        public Task<WatchlistIndex> GetAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(new WatchlistIndex(Array.Empty<WatchlistSubject>()));
+        public Task<GlobalWatchlistSnapshot> GetAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(Empty);
+
+        public static readonly GlobalWatchlistSnapshot Empty = new(new WatchlistIndex(Array.Empty<WatchlistSubject>()), "");
     }
 
     private sealed class FakeTenantLists(WatchlistSubject subject) : ITenantWatchlistRepository

@@ -24,9 +24,6 @@ public sealed class WatchlistRepository : IWatchlistRepository
             .OrderByDescending(l => l.LoadedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
-    public async Task<DateTimeOffset?> GetLastLoadedAtAsync(CancellationToken cancellationToken = default)
-        => await _db.WatchlistLoads.AsNoTracking().MaxAsync(l => (DateTimeOffset?)l.LoadedAt, cancellationToken);
-
     public async Task<IReadOnlyList<WatchlistSubject>> ListSubjectsAsync(CancellationToken cancellationToken = default)
     {
         var entries = await _db.WatchlistEntries.AsNoTracking().ToListAsync(cancellationToken);

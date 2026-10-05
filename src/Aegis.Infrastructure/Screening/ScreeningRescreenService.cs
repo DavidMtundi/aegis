@@ -29,15 +29,18 @@ public sealed class ScreeningRescreenService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopes;
     private readonly IRescreenSignal _signal;
+    private readonly IGlobalWatchlist _global;
     private readonly IConfiguration _config;
     private readonly ILogger<ScreeningRescreenService> _logger;
     private readonly SemaphoreSlim _running = new(1, 1);
 
     public ScreeningRescreenService(
-        IServiceScopeFactory scopes, IRescreenSignal signal, IConfiguration config, ILogger<ScreeningRescreenService> logger)
+        IServiceScopeFactory scopes, IRescreenSignal signal, IGlobalWatchlist global, IConfiguration config,
+        ILogger<ScreeningRescreenService> logger)
     {
         _scopes = scopes;
         _signal = signal;
+        _global = global;
         _config = config;
         _logger = logger;
     }
@@ -83,7 +86,10 @@ public sealed class ScreeningRescreenService : BackgroundService
         }
     }
 
-    /// <summary>One pass over every scorable tenant. A failing tenant is logged and keeps its old list version.</summary>
+    /// <summary>
+    /// One pass over every scorable tenant against one global list snapshot. A failing tenant is logged and keeps its
+    /// old list version; a list loaded mid-pass is picked up by the next pass.
+    /// </summary>
     /// <returns>Number of tenants rescreened.</returns>
     public async Task<int> RunOnceAsync(CancellationToken cancellationToken)
     {
@@ -95,13 +101,14 @@ public sealed class ScreeningRescreenService : BackgroundService
             {
                 tenantIds = await scope.ServiceProvider.GetRequiredService<IRiskBatchSource>().ListScorableTenantIdsAsync(cancellationToken);
             }
+            var global = await _global.GetAsync(cancellationToken);
 
             var rescreened = 0;
             foreach (var tenantId in tenantIds)
             {
                 try
                 {
-                    if (await RescreenTenantAsync(new TenantId(tenantId), cancellationToken)) rescreened++;
+                    if (await RescreenTenantAsync(new TenantId(tenantId), global, cancellationToken)) rescreened++;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -118,11 +125,14 @@ public sealed class ScreeningRescreenService : BackgroundService
 
     /// <returns>False when the tenant was already screened against the current lists.</returns>
     public async Task<bool> RescreenTenantAsync(TenantId tenantId, CancellationToken cancellationToken)
+        => await RescreenTenantAsync(tenantId, await _global.GetAsync(cancellationToken), cancellationToken);
+
+    private async Task<bool> RescreenTenantAsync(TenantId tenantId, GlobalWatchlistSnapshot global, CancellationToken cancellationToken)
     {
         // A scope per tenant keeps the change tracker small and isolates failures.
         await using var scope = _scopes.CreateAsyncScope();
         var outcome = await scope.ServiceProvider.GetRequiredService<IScreeningRescreener>()
-            .RescreenIfStaleAsync(tenantId, cancellationToken);
+            .RescreenIfStaleAsync(tenantId, global, cancellationToken);
         if (outcome is null) return false;
         _logger.LogInformation("Rescreened {Count} customers for tenant {TenantId}: {Matches} new matches",
             outcome.Screened, tenantId.Value, outcome.NewMatchIds.Count);

@@ -12,6 +12,8 @@ public sealed class ScreeningRescreenerTests
     private static readonly TenantId Tenant = new(Guid.NewGuid());
     private static readonly WatchlistLoad UnLoad = WatchlistLoad.Record(WatchlistSource.UN, null, 4, "hash-1");
     private static readonly TenantWatchlistSummary NoTenantList = new(0, null, null);
+    private static readonly GlobalWatchlistSnapshot Global = new(
+        new WatchlistIndex(Array.Empty<WatchlistSubject>()), ScreeningListVersion.Global(new[] { UnLoad }));
 
     [Fact]
     public async Task A_tenant_never_screened_is_screened_and_its_version_recorded()
@@ -20,21 +22,31 @@ public sealed class ScreeningRescreenerTests
         var screening = new FakeScreening();
         var uow = new CountingUnitOfWork();
 
-        var outcome = await Rescreener(states, screening, uow).RescreenIfStaleAsync(Tenant);
+        var outcome = await Rescreener(states, screening, uow).RescreenIfStaleAsync(Tenant, Global);
 
         Assert.NotNull(outcome);
         Assert.Equal(1, screening.Calls);
-        Assert.Equal(ScreeningListVersion.Compute(new[] { UnLoad }, NoTenantList), states.Version);
+        Assert.Equal(ScreeningListVersion.Compute(Global.Version, NoTenantList), states.Version);
         Assert.Equal(1, uow.Saves);
+    }
+
+    [Fact]
+    public async Task The_tenant_is_screened_against_the_snapshot_whose_version_is_recorded()
+    {
+        var screening = new FakeScreening();
+
+        await Rescreener(new FakeStates(), screening, new CountingUnitOfWork()).RescreenIfStaleAsync(Tenant, Global);
+
+        Assert.Same(Global, screening.Snapshot);
     }
 
     [Fact]
     public async Task A_tenant_on_the_current_version_is_skipped()
     {
-        var states = new FakeStates { Version = ScreeningListVersion.Compute(new[] { UnLoad }, NoTenantList) };
+        var states = new FakeStates { Version = ScreeningListVersion.Compute(Global.Version, NoTenantList) };
         var screening = new FakeScreening();
 
-        Assert.Null(await Rescreener(states, screening, new CountingUnitOfWork()).RescreenIfStaleAsync(Tenant));
+        Assert.Null(await Rescreener(states, screening, new CountingUnitOfWork()).RescreenIfStaleAsync(Tenant, Global));
         Assert.Equal(0, screening.Calls);
     }
 
@@ -44,7 +56,7 @@ public sealed class ScreeningRescreenerTests
         var states = new FakeStates { Version = "UN:old" };
         var screening = new FakeScreening { Failure = new TimeoutException("database timeout") };
 
-        await Assert.ThrowsAsync<TimeoutException>(() => Rescreener(states, screening, new CountingUnitOfWork()).RescreenIfStaleAsync(Tenant));
+        await Assert.ThrowsAsync<TimeoutException>(() => Rescreener(states, screening, new CountingUnitOfWork()).RescreenIfStaleAsync(Tenant, Global));
         Assert.Equal("UN:old", states.Version);
     }
 
@@ -52,36 +64,17 @@ public sealed class ScreeningRescreenerTests
     public void A_new_upload_or_load_changes_the_version()
     {
         var uploaded = new TenantWatchlistSummary(3, DateTimeOffset.UtcNow, "admin");
-        var baseline = ScreeningListVersion.Compute(new[] { UnLoad }, uploaded);
+        var global = ScreeningListVersion.Global(new[] { UnLoad });
+        var baseline = ScreeningListVersion.Compute(global, uploaded);
 
-        Assert.NotEqual(baseline, ScreeningListVersion.Compute(new[] { UnLoad }, uploaded with { UploadedAt = uploaded.UploadedAt!.Value.AddSeconds(1) }));
-        Assert.NotEqual(baseline, ScreeningListVersion.Compute(new[] { WatchlistLoad.Record(WatchlistSource.UN, null, 4, "hash-1") }, uploaded));
-        Assert.Equal(baseline, ScreeningListVersion.Compute(new[] { UnLoad }, uploaded));
+        Assert.NotEqual(baseline, ScreeningListVersion.Compute(global, uploaded with { UploadedAt = uploaded.UploadedAt!.Value.AddSeconds(1) }));
+        Assert.NotEqual(baseline, ScreeningListVersion.Compute(
+            ScreeningListVersion.Global(new[] { WatchlistLoad.Record(WatchlistSource.UN, null, 4, "hash-1") }), uploaded));
+        Assert.Equal(baseline, ScreeningListVersion.Compute(ScreeningListVersion.Global(new[] { UnLoad }), uploaded));
     }
 
     private static ScreeningRescreener Rescreener(FakeStates states, FakeScreening screening, IUnitOfWork uow)
-        => new(new FakeLists(), new FakeTenantLists(), states, screening, uow);
-
-    private sealed class FakeLists : IWatchlistRepository
-    {
-        public Task<IReadOnlyList<WatchlistLoad>> ListLatestLoadsAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult<IReadOnlyList<WatchlistLoad>>(new[] { UnLoad });
-
-        public Task<WatchlistLoad?> GetLatestLoadAsync(WatchlistSource source, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-
-        public Task<DateTimeOffset?> GetLastLoadedAtAsync(CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-
-        public Task<IReadOnlyList<WatchlistSubject>> ListSubjectsAsync(CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-
-        public Task MarkCheckedAsync(Guid loadId, DateTimeOffset checkedAt, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-
-        public Task ReplaceSourceAsync(WatchlistLoad load, IReadOnlyList<WatchlistSubject> subjects, CancellationToken cancellationToken = default)
-            => throw new NotSupportedException();
-    }
+        => new(new FakeTenantLists(), states, screening, uow);
 
     private sealed class FakeTenantLists : ITenantWatchlistRepository
     {
@@ -113,10 +106,13 @@ public sealed class ScreeningRescreenerTests
     {
         public int Calls { get; private set; }
         public Exception? Failure { get; init; }
+        public GlobalWatchlistSnapshot? Snapshot { get; private set; }
 
-        public Task<ScreeningOutcome> ScreenTenantAsync(TenantId tenantId, string trigger, RiskActor actor, CancellationToken cancellationToken = default)
+        public Task<ScreeningOutcome> ScreenTenantAsync(
+            TenantId tenantId, GlobalWatchlistSnapshot global, string trigger, RiskActor actor, CancellationToken cancellationToken = default)
         {
             Calls++;
+            Snapshot = global;
             if (Failure is not null) throw Failure;
             return Task.FromResult(new ScreeningOutcome(0, Array.Empty<Guid>()));
         }

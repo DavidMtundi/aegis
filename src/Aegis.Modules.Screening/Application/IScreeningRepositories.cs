@@ -11,9 +11,6 @@ public interface IWatchlistRepository
 
     Task<WatchlistLoad?> GetLatestLoadAsync(WatchlistSource source, CancellationToken cancellationToken = default);
 
-    /// <summary>Time of the newest load of any source; changes whenever a list is replaced.</summary>
-    Task<DateTimeOffset?> GetLastLoadedAtAsync(CancellationToken cancellationToken = default);
-
     Task<IReadOnlyList<WatchlistSubject>> ListSubjectsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Records a download attempt that left the load current. Saves immediately.</summary>

@@ -9,11 +9,14 @@ using Aegis.Modules.Screening.Domain;
 /// </summary>
 public static class ScreeningListVersion
 {
-    public static string Compute(IEnumerable<WatchlistLoad> latestLoads, TenantWatchlistSummary tenantList)
+    /// <summary>The global part: the newest load id of each source.</summary>
+    public static string Global(IEnumerable<WatchlistLoad> latestLoads)
+        => string.Join(";", latestLoads.OrderBy(l => l.Source).Select(l => $"{l.Source}:{l.Id:N}"));
+
+    public static string Compute(string globalVersion, TenantWatchlistSummary tenantList)
     {
-        var parts = latestLoads.OrderBy(l => l.Source).Select(l => $"{l.Source}:{l.Id:N}").ToList();
-        parts.Add(string.Create(CultureInfo.InvariantCulture,
-            $"{WatchlistSource.TENANT}:{tenantList.EntryCount}@{tenantList.UploadedAt?.UtcTicks ?? 0}"));
-        return string.Join(";", parts);
+        var tenant = string.Create(CultureInfo.InvariantCulture,
+            $"{WatchlistSource.TENANT}:{tenantList.EntryCount}@{tenantList.UploadedAt?.UtcTicks ?? 0}");
+        return globalVersion.Length == 0 ? tenant : $"{globalVersion};{tenant}";
     }
 }

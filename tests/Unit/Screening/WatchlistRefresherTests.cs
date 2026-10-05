@@ -219,9 +219,6 @@ public sealed class WatchlistRefresherTests
         public Task<WatchlistLoad?> GetLatestLoadAsync(WatchlistSource source, CancellationToken cancellationToken = default)
             => Task.FromResult(Loads.Where(l => l.Source == source).MaxBy(l => l.LoadedAt));
 
-        public Task<DateTimeOffset?> GetLastLoadedAtAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(Loads.Count == 0 ? (DateTimeOffset?)null : Loads.Max(l => l.LoadedAt));
-
         public Task<IReadOnlyList<WatchlistSubject>> ListSubjectsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<WatchlistSubject>>(Subjects);
 

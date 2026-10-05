@@ -26,7 +26,9 @@ public interface ICustomerScreeningService
     Task TryScreenCustomerAsync(
         TenantId tenantId, Guid customerId, string trigger, RiskActor actor, CancellationToken cancellationToken = default);
 
-    Task<ScreeningOutcome> ScreenTenantAsync(TenantId tenantId, string trigger, RiskActor actor, CancellationToken cancellationToken = default);
+    /// <summary>Screens every customer of the tenant against <paramref name="global"/> and the tenant's own list.</summary>
+    Task<ScreeningOutcome> ScreenTenantAsync(
+        TenantId tenantId, GlobalWatchlistSnapshot global, string trigger, RiskActor actor, CancellationToken cancellationToken = default);
 
     /// <returns>Null when the match does not exist in the tenant.</returns>
     /// <exception cref="ArgumentException">The reason is blank.</exception>
@@ -100,9 +102,9 @@ public sealed class CustomerScreeningService : ICustomerScreeningService
     }
 
     public async Task<ScreeningOutcome> ScreenTenantAsync(
-        TenantId tenantId, string trigger, RiskActor actor, CancellationToken cancellationToken = default)
+        TenantId tenantId, GlobalWatchlistSnapshot global, string trigger, RiskActor actor, CancellationToken cancellationToken = default)
     {
-        var lists = await ListsAsync(tenantId, cancellationToken);
+        var lists = await ListsAsync(tenantId, global, cancellationToken);
         var created = new List<Guid>();
         var screened = 0;
         Guid? after = null;
@@ -199,11 +201,10 @@ public sealed class CustomerScreeningService : ICustomerScreeningService
     }
 
     private async Task<WatchlistIndex[]> ListsAsync(TenantId tenantId, CancellationToken cancellationToken)
-        => new[]
-        {
-            await _global.GetAsync(cancellationToken),
-            new WatchlistIndex(await _tenantLists.ListSubjectsAsync(tenantId, cancellationToken))
-        };
+        => await ListsAsync(tenantId, await _global.GetAsync(cancellationToken), cancellationToken);
+
+    private async Task<WatchlistIndex[]> ListsAsync(TenantId tenantId, GlobalWatchlistSnapshot global, CancellationToken cancellationToken)
+        => new[] { global.Index, new WatchlistIndex(await _tenantLists.ListSubjectsAsync(tenantId, cancellationToken)) };
 
     private async Task<IReadOnlyList<Guid>> ScreenAsync(
         TenantId tenantId, ScreeningCandidate candidate, WatchlistIndex[] lists, string trigger, RiskActor actor,

@@ -20,40 +20,39 @@ public interface IScreeningRescreener
     /// Rescreens every customer of the tenant when the lists changed since its last full screen, then records the
     /// new list version. The version only moves once the whole run has saved.
     /// </summary>
-    /// <returns>Null when the tenant was already screened against the current lists.</returns>
-    Task<ScreeningOutcome?> RescreenIfStaleAsync(TenantId tenantId, CancellationToken cancellationToken = default);
+    /// <param name="global">The global lists to screen against; its version is the one recorded.</param>
+    /// <returns>Null when the tenant was already screened against these lists.</returns>
+    Task<ScreeningOutcome?> RescreenIfStaleAsync(
+        TenantId tenantId, GlobalWatchlistSnapshot global, CancellationToken cancellationToken = default);
 }
 
 public sealed class ScreeningRescreener : IScreeningRescreener
 {
-    private readonly IWatchlistRepository _lists;
     private readonly ITenantWatchlistRepository _tenantLists;
     private readonly ITenantScreeningStateRepository _states;
     private readonly ICustomerScreeningService _screening;
     private readonly IUnitOfWork _uow;
 
     public ScreeningRescreener(
-        IWatchlistRepository lists,
         ITenantWatchlistRepository tenantLists,
         ITenantScreeningStateRepository states,
         ICustomerScreeningService screening,
         IUnitOfWork uow)
     {
-        _lists = lists;
         _tenantLists = tenantLists;
         _states = states;
         _screening = screening;
         _uow = uow;
     }
 
-    public async Task<ScreeningOutcome?> RescreenIfStaleAsync(TenantId tenantId, CancellationToken cancellationToken = default)
+    public async Task<ScreeningOutcome?> RescreenIfStaleAsync(
+        TenantId tenantId, GlobalWatchlistSnapshot global, CancellationToken cancellationToken = default)
     {
-        // Read before screening: a list that changes mid-run leaves the tenant stale for the next pass.
-        var version = ScreeningListVersion.Compute(
-            await _lists.ListLatestLoadsAsync(cancellationToken), await _tenantLists.GetSummaryAsync(tenantId, cancellationToken));
+        // Tenant summary read before screening: an upload mid-run leaves the tenant stale for the next pass.
+        var version = ScreeningListVersion.Compute(global.Version, await _tenantLists.GetSummaryAsync(tenantId, cancellationToken));
         if (await _states.GetListVersionAsync(tenantId, cancellationToken) == version) return null;
 
-        var outcome = await _screening.ScreenTenantAsync(tenantId, ScreeningTriggers.ListUpdated, RiskActor.System, cancellationToken);
+        var outcome = await _screening.ScreenTenantAsync(tenantId, global, ScreeningTriggers.ListUpdated, RiskActor.System, cancellationToken);
         await _states.SetListVersionAsync(tenantId, version, cancellationToken);
         await _uow.SaveChangesAsync(cancellationToken);
         return outcome;
