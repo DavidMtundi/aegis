@@ -21,6 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\Fixtures\screening\*.xml" LinkBase="Fixtures\screening" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Aegis.Api\Aegis.Api.csproj" />
   </ItemGroup>
 
