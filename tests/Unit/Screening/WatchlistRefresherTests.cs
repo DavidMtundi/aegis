@@ -136,6 +136,21 @@ public sealed class WatchlistRefresherTests
     }
 
     [Fact]
+    public async Task Failing_to_record_an_unchanged_check_still_reports_unchanged()
+    {
+        var repo = new FakeWatchlistRepository();
+        var clock = new MutableClock();
+        var refresher = Refresher(new FakeDownloader(Fixture("un-sample.xml")), repo, clock);
+        await refresher.RefreshAsync(WatchlistSource.UN);
+        clock.Advance(WatchlistRefresher.Cooldown + TimeSpan.FromMinutes(1));
+        repo.MarkCheckedFailure = new TimeoutException("database timeout");
+
+        var result = await refresher.RefreshAsync(WatchlistSource.UN);
+
+        Assert.Equal(WatchlistRefreshStatus.UNCHANGED, result.Status);
+    }
+
+    [Fact]
     public async Task Refreshing_all_sources_while_another_refresh_runs_returns_null()
     {
         var downloader = new FakeDownloader(Fixture("un-sample.xml"));
@@ -212,6 +227,7 @@ public sealed class WatchlistRefresherTests
     {
         public List<WatchlistLoad> Loads { get; } = new();
         public List<WatchlistSubject> Subjects { get; } = new();
+        public Exception? MarkCheckedFailure { get; set; }
 
         public Task<IReadOnlyList<WatchlistLoad>> ListLatestLoadsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<WatchlistLoad>>(Loads);
@@ -224,6 +240,7 @@ public sealed class WatchlistRefresherTests
 
         public Task MarkCheckedAsync(Guid loadId, DateTimeOffset checkedAt, CancellationToken cancellationToken = default)
         {
+            if (MarkCheckedFailure is not null) return Task.FromException(MarkCheckedFailure);
             Loads.Single(l => l.Id == loadId).MarkChecked(checkedAt);
             return Task.CompletedTask;
         }

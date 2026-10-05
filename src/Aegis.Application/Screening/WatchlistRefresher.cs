@@ -90,7 +90,7 @@ public sealed class WatchlistRefresher : IWatchlistRefresher
             var hash = Convert.ToHexString(SHA256.HashData(bytes));
             if (latest?.ContentHash == hash)
             {
-                await _lists.MarkCheckedAsync(latest.Id, now, cancellationToken);
+                await MarkCheckedAsync(latest, now);
                 return new WatchlistRefreshResult(source, WatchlistRefreshStatus.UNCHANGED, latest.EntryCount, null);
             }
 
@@ -122,7 +122,10 @@ public sealed class WatchlistRefresher : IWatchlistRefresher
         }
     }
 
-    /// <summary>A failed attempt also starts the cooldown, so a broken upstream is not hammered.</summary>
+    /// <summary>
+    /// Starts the cooldown for unchanged and failed attempts (so a broken upstream is not hammered). Failing to record
+    /// it never changes the attempt's outcome.
+    /// </summary>
     private async Task MarkCheckedAsync(WatchlistLoad? latest, DateTimeOffset now)
     {
         if (latest is null) return;
