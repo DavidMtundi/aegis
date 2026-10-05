@@ -16,6 +16,9 @@ public interface IWatchlistRepository
 
     Task<IReadOnlyList<WatchlistSubject>> ListSubjectsAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Records a download attempt that left the load current. Saves immediately.</summary>
+    Task MarkCheckedAsync(Guid loadId, DateTimeOffset checkedAt, CancellationToken cancellationToken = default);
+
     /// <summary>Replaces every entry of the load's source and records the load, in one transaction. Saves immediately.</summary>
     Task ReplaceSourceAsync(WatchlistLoad load, IReadOnlyList<WatchlistSubject> subjects, CancellationToken cancellationToken = default);
 }

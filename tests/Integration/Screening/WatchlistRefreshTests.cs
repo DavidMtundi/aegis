@@ -18,13 +18,13 @@ public sealed class WatchlistRefreshTests : IAsyncLifetime
         using var scope = _fx.Factory.Services.CreateScope();
         var refresher = scope.ServiceProvider.GetRequiredService<IWatchlistRefresher>();
 
-        // The global tables are shared by every test class, so a previous run may already have loaded them.
+        // The global tables are shared by every test class, so a previous test may already have loaded them.
         var un = await refresher.RefreshAsync(WatchlistSource.UN);
         var ofac = await refresher.RefreshAsync(WatchlistSource.OFAC);
-        Assert.Contains(un.Status, new[] { WatchlistRefreshStatus.LOADED, WatchlistRefreshStatus.UNCHANGED });
+        Assert.Contains(un.Status, new[] { WatchlistRefreshStatus.LOADED, WatchlistRefreshStatus.UNCHANGED, WatchlistRefreshStatus.SKIPPED });
         Assert.Equal(4, un.EntryCount);
         Assert.Equal(2, ofac.EntryCount);
-        Assert.Equal(WatchlistRefreshStatus.UNCHANGED, (await refresher.RefreshAsync(WatchlistSource.UN)).Status);
+        Assert.Equal(WatchlistRefreshStatus.SKIPPED, (await refresher.RefreshAsync(WatchlistSource.UN)).Status);
 
         var index = await scope.ServiceProvider.GetRequiredService<IGlobalWatchlist>().GetAsync();
         Assert.Equal(6, index.Count);

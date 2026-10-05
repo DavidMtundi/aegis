@@ -33,6 +33,10 @@ public sealed class WatchlistRepository : IWatchlistRepository
         return entries.Select(e => e.ToSubject()).ToList();
     }
 
+    public Task MarkCheckedAsync(Guid loadId, DateTimeOffset checkedAt, CancellationToken cancellationToken = default)
+        => _db.WatchlistLoads.Where(l => l.Id == loadId)
+            .ExecuteUpdateAsync(u => u.SetProperty(l => l.CheckedAt, checkedAt), cancellationToken);
+
     public async Task ReplaceSourceAsync(WatchlistLoad load, IReadOnlyList<WatchlistSubject> subjects, CancellationToken cancellationToken = default)
     {
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);

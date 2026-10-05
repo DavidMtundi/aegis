@@ -76,6 +76,7 @@ public static class DependencyInjection
             c.MaxResponseContentBufferSize = Screening.WatchlistDownloader.MaxBytes;
         });
         services.AddScoped<IWatchlistDownloader, Screening.WatchlistDownloader>();
+        services.AddScoped<IWatchlistRefreshLock, Screening.PostgresWatchlistRefreshLock>();
         services.AddScoped<IWatchlistRefresher, WatchlistRefresher>();
         services.AddSingleton<IGlobalWatchlist, Screening.GlobalWatchlistCache>();
         services.AddSingleton(sp => new ScreeningOptions(

@@ -76,6 +76,9 @@ public sealed class ScreeningRescreenerTests
         public Task<IReadOnlyList<WatchlistSubject>> ListSubjectsAsync(CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
 
+        public Task MarkCheckedAsync(Guid loadId, DateTimeOffset checkedAt, CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
         public Task ReplaceSourceAsync(WatchlistLoad load, IReadOnlyList<WatchlistSubject> subjects, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();
     }

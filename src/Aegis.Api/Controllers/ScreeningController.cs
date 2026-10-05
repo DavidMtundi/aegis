@@ -89,14 +89,17 @@ public sealed class ScreeningController : ControllerBase
             await _tenantLists.GetSummaryAsync(_tenant.TenantId, ct));
     }
 
-    /// <summary>Refreshes the shared lists now; the rescreen worker then rescreens every tenant whose lists changed.</summary>
+    /// <summary>
+    /// Refreshes the shared lists now; the rescreen worker then rescreens every tenant whose lists changed. A source
+    /// attempted in the last 15 minutes is SKIPPED, and a refresh already running elsewhere is a 409.
+    /// </summary>
     [HttpPost("screening/lists/refresh")]
     [RequirePermission(Permissions.ScreeningManage)]
     public async Task<ActionResult<RefreshResponse>> Refresh(CancellationToken ct)
     {
         if (!_tenant.IsAuthenticated) return Unauthorized();
-        var results = new List<WatchlistRefreshResult>();
-        foreach (var source in _refresher.Sources) results.Add(await _refresher.RefreshAsync(source, ct));
+        var results = await _refresher.RefreshAllAsync(cancellationToken: ct);
+        if (results is null) return Conflict("A list refresh is already running. Try again in a few minutes.");
 
         await _audit.AppendAsync(AuditEvent.Create(
             _tenant.TenantId.Value, AuditEventTypes.SCREENING_LIST_REFRESHED, "GlobalWatchlist",

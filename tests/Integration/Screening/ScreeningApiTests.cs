@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Aegis.Application.Screening;
 using Aegis.Infrastructure.Screening;
 using Aegis.Modules.Screening.Application;
 using Aegis.Shared.Domain;
@@ -45,7 +46,7 @@ public sealed class ScreeningApiTests : IAsyncLifetime
             r => r.GetProperty("source").GetString()!, r => r);
         Assert.Equal(4, results["UN"].GetProperty("entryCount").GetInt32());
         Assert.Equal(2, results["OFAC"].GetProperty("entryCount").GetInt32());
-        Assert.Contains(results["UN"].GetProperty("status").GetString(), new[] { "LOADED", "UNCHANGED" });
+        Assert.Contains(results["UN"].GetProperty("status").GetString(), new[] { "LOADED", "UNCHANGED", "SKIPPED" });
     }
 
     [Fact]
@@ -166,6 +167,33 @@ public sealed class ScreeningApiTests : IAsyncLifetime
         var body = await refresh.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(body.GetProperty("rescreenQueued").GetBoolean());
         Assert.False(body.TryGetProperty("newMatches", out _));
+    }
+
+    [Fact]
+    public async Task A_refresh_while_another_holds_the_lock_is_a_conflict()
+    {
+        await using (var scope = _fx.Factory.Services.CreateAsyncScope())
+        {
+            await using var held = await scope.ServiceProvider.GetRequiredService<IWatchlistRefreshLock>().TryAcquireAsync();
+            Assert.NotNull(held);
+
+            var refresh = await _fx.AdminClient.PostAsync("/api/v1/screening/lists/refresh", null);
+
+            Assert.Equal(HttpStatusCode.Conflict, refresh.StatusCode);
+        }
+
+        (await _fx.AdminClient.PostAsync("/api/v1/screening/lists/refresh", null)).EnsureSuccessStatusCode();
+    }
+
+    [Fact]
+    public async Task A_refresh_right_after_another_skips_the_download()
+    {
+        var response = await _fx.AdminClient.PostAsync("/api/v1/screening/lists/refresh", null);
+        response.EnsureSuccessStatusCode();
+        var refresh = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.All(refresh.GetProperty("results").EnumerateArray(),
+            r => Assert.Equal("SKIPPED", r.GetProperty("status").GetString()));
     }
 
     [Fact]

@@ -10,15 +10,24 @@ public sealed class WatchlistLoad
     public int EntryCount { get; private set; }
     public string ContentHash { get; private set; } = null!;
 
+    /// <summary>Last time the source was downloaded again and found unchanged or unusable.</summary>
+    public DateTimeOffset? CheckedAt { get; private set; }
+
+    /// <summary>Newest download attempt that ended with this load still current.</summary>
+    public DateTimeOffset LastAttemptAt => CheckedAt is { } checkedAt && checkedAt > LoadedAt ? checkedAt : LoadedAt;
+
     private WatchlistLoad() { }
 
-    public static WatchlistLoad Record(WatchlistSource source, DateTimeOffset? publishedAt, int entryCount, string contentHash) => new()
+    public static WatchlistLoad Record(
+        WatchlistSource source, DateTimeOffset? publishedAt, int entryCount, string contentHash, DateTimeOffset? loadedAt = null) => new()
     {
         Id = Guid.NewGuid(),
         Source = source,
-        LoadedAt = DateTimeOffset.UtcNow,
+        LoadedAt = loadedAt ?? DateTimeOffset.UtcNow,
         PublishedAt = publishedAt,
         EntryCount = entryCount,
         ContentHash = contentHash
     };
+
+    public void MarkChecked(DateTimeOffset checkedAt) => CheckedAt = checkedAt;
 }

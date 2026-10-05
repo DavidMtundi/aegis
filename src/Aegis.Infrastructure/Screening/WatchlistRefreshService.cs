@@ -2,7 +2,6 @@ namespace Aegis.Infrastructure.Screening;
 
 using Aegis.Application.Risk;
 using Aegis.Application.Screening;
-using Aegis.Modules.Screening.Application;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -71,17 +70,17 @@ public sealed class WatchlistRefreshService : BackgroundService
 
     private async Task RunOnceAsync(bool onlyMissing, CancellationToken ct)
     {
-        var changed = false;
+        IReadOnlyList<WatchlistRefreshResult>? results;
         await using (var scope = _scopes.CreateAsyncScope())
         {
-            var refresher = scope.ServiceProvider.GetRequiredService<IWatchlistRefresher>();
-            var lists = scope.ServiceProvider.GetRequiredService<IWatchlistRepository>();
-            foreach (var source in refresher.Sources)
-            {
-                if (onlyMissing && await lists.GetLatestLoadAsync(source, ct) is not null) continue;
-                changed |= (await refresher.RefreshAsync(source, ct)).Status == WatchlistRefreshStatus.LOADED;
-            }
+            results = await scope.ServiceProvider.GetRequiredService<IWatchlistRefresher>().RefreshAllAsync(onlyMissing, ct);
         }
-        if (changed) _rescreen.Request();
+
+        if (results is null)
+        {
+            _logger.LogInformation("Watchlist refresh skipped: another refresh is running");
+            return;
+        }
+        if (results.Any(r => r.Status == WatchlistRefreshStatus.LOADED)) _rescreen.Request();
     }
 }

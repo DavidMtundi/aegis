@@ -46,6 +46,7 @@ public sealed class WatchlistLoadConfiguration : IEntityTypeConfiguration<Watchl
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Source).HasConversion<string>().HasMaxLength(16);
         builder.Property(x => x.ContentHash).HasMaxLength(64).IsRequired();
+        builder.Ignore(x => x.LastAttemptAt);
         builder.HasIndex(x => new { x.Source, x.LoadedAt });
     }
 }
