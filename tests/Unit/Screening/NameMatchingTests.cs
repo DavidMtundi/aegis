@@ -59,5 +59,31 @@ public sealed class NameMatchingTests
     public void One_shared_token_against_a_longer_name_is_capped_below_threshold()
         => Assert.True(Score("Saad", "Saad Omar Hassan") < WatchlistIndex.DefaultThreshold);
 
+    [Theory]
+    [InlineData("Grace Mohamed", "GAMEL MOHAMED")]
+    [InlineData("Irene Mohamed", "Mohamed MIRE")]
+    [InlineData("Kamau Mohamed", "Mohamed KALLAS")]
+    [InlineData("Kamau Mohamed", "Mohamed KAMEL")]
+    [InlineData("Hassan Nyambura", "Abu HASSAN")]
+    [InlineData("Hassan Hassan", "Bassam HASSAN")]
+    public void One_exact_part_and_one_loose_part_score_below_threshold(string customer, string listed)
+        => Assert.True(Score(customer, listed) < WatchlistIndex.DefaultThreshold, $"{Score(customer, listed)}");
+
+    [Theory]
+    [InlineData("Mohammed Hassan", "Mohamed Hassan")]
+    [InlineData("Germain Katanga", "KATANGA Germain")]
+    [InlineData("John Ng'ang'a Kamau", "John Nganga Kamau")]
+    [InlineData("Hassan Hassan", "Hassan HASSANZADEH")]
+    public void Every_part_similar_still_matches(string customer, string listed)
+        => Assert.True(Score(customer, listed) >= WatchlistIndex.DefaultThreshold, $"{Score(customer, listed)}");
+
+    [Fact]
+    public void A_weak_pair_caps_the_score_at_its_similarity()
+    {
+        var weakest = JaroWinkler.Similarity("GRACE", "GAMEL");
+        Assert.True(weakest < NameMatcher.MinTokenSimilarity);
+        Assert.Equal(Math.Round(weakest, 4), Score("Grace Mohamed", "GAMEL MOHAMED"), 4);
+    }
+
     private static double Score(string a, string b) => NameMatcher.Score(NameNormalizer.Tokens(a), NameNormalizer.Tokens(b));
 }
