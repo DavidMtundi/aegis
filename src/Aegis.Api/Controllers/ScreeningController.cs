@@ -58,7 +58,7 @@ public sealed class ScreeningController : ControllerBase
 
     public sealed record MatchSummaryDto(
         Guid Id, Guid CustomerId, string CustomerName, string Source, string Category, string MatchedName,
-        double Score, bool BirthYearMatched, string Status, string Trigger, DateTimeOffset CreatedAt, DateTimeOffset? ReviewedAt);
+        double Score, bool BirthYearMatched, bool BirthYearConflict, string Status, string Trigger, DateTimeOffset CreatedAt, DateTimeOffset? ReviewedAt);
 
     public sealed record SubjectDto(
         string Source, string ExternalId, string Category, string Kind, IReadOnlyList<string> Names,
@@ -231,7 +231,7 @@ public sealed class ScreeningController : ControllerBase
 
     private static MatchSummaryDto ToSummary(ScreeningMatch m) => new(
         m.Id, m.CustomerId, m.CustomerName, m.Source.ToString(), m.Category.ToString(), m.MatchedName,
-        m.Score, m.BirthYearMatched, m.Status.ToString(), m.Trigger, m.CreatedAt, m.ReviewedAt);
+        m.Score, m.BirthYearMatched, m.BirthYearConflict, m.Status.ToString(), m.Trigger, m.CreatedAt, m.ReviewedAt);
 
     private static MatchDetailDto ToDetail(ScreeningMatch m) => new(
         ToSummary(m),

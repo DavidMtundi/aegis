@@ -26,4 +26,6 @@ public sealed record WatchlistSubject(
 /// <summary>The customer being screened. Businesses screen as <see cref="SubjectKind.ENTITY"/>.</summary>
 public sealed record ScreeningCandidate(Guid CustomerId, string Name, SubjectKind Kind, DateOnly? DateOfBirth);
 
-public sealed record PotentialMatch(WatchlistSubject Subject, string MatchedName, double Score, bool BirthYearMatched);
+/// <param name="BirthYearConflict">The customer's birth year is outside the listed range, kept only because the name is near exact.</param>
+public sealed record PotentialMatch(
+    WatchlistSubject Subject, string MatchedName, double Score, bool BirthYearMatched, bool BirthYearConflict = false);

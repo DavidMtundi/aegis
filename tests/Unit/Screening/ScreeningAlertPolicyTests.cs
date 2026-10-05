@@ -32,9 +32,24 @@ public sealed class ScreeningAlertPolicyTests
         Assert.Equal("ZEPHANIAH OKOTH MBWANA", evidence.EvaluatedValues["matchedName"]);
         Assert.Equal(0.9333, evidence.EvaluatedValues["matchScore"]);
         Assert.Equal(true, evidence.EvaluatedValues["birthYearMatched"]);
+        Assert.Equal(false, evidence.EvaluatedValues["birthYearConflict"]);
         Assert.Equal(ScreeningAlertSource.RuleCode, evidence.AdditionalContext["ruleCode"]);
         Assert.Equal(match.Id.ToString("D"), evidence.AdditionalContext["screeningMatchId"]);
         Assert.Equal("Same ID number", evidence.AdditionalContext["reviewReason"]);
         Assert.Empty(evidence.TransactionIds);
+    }
+
+    [Fact]
+    public void Evidence_flags_a_birth_year_conflict()
+    {
+        var subject = new WatchlistSubject(WatchlistSource.UN, "QDi.901", WatchlistCategory.SANCTIONS, SubjectKind.INDIVIDUAL,
+            new[] { "ZEPHANIAH OKOTH MBWANA" }, new[] { new BirthYearRange(1978, 1978) }, Array.Empty<string>(), null);
+        var match = ScreeningMatch.Create(new TenantId(Guid.NewGuid()),
+            new ScreeningCandidate(Guid.NewGuid(), "Zephaniah Okoth Mbwana", SubjectKind.INDIVIDUAL, new DateOnly(1990, 1, 1)),
+            new PotentialMatch(subject, "ZEPHANIAH OKOTH MBWANA", 1.0, false, BirthYearConflict: true), ScreeningTriggers.Manual);
+        match.Confirm("user-1", "Same ID number", Guid.NewGuid());
+
+        Assert.True(match.BirthYearConflict);
+        Assert.Equal(true, ScreeningAlertPolicy.Evidence(match, "Confirmed sanctions match").EvaluatedValues["birthYearConflict"]);
     }
 }

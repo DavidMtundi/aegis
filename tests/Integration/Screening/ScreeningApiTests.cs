@@ -170,6 +170,19 @@ public sealed class ScreeningApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task An_exact_name_with_a_conflicting_birth_year_is_kept_and_flagged()
+    {
+        var customerId = await CreateIndividualAsync("Zephaniah Okoth", "Mbwana", "1990-01-01");
+
+        var match = await SingleMatchAsync(customerId);
+
+        Assert.True(match.GetProperty("birthYearConflict").GetBoolean());
+        Assert.False(match.GetProperty("birthYearMatched").GetBoolean());
+        var detail = await _fx.AdminClient.GetFromJsonAsync<JsonElement>($"/api/v1/screening/matches/{match.GetProperty("id").GetGuid()}");
+        Assert.True(detail.GetProperty("match").GetProperty("birthYearConflict").GetBoolean());
+    }
+
+    [Fact]
     public async Task A_refresh_while_another_holds_the_lock_is_a_conflict()
     {
         await using (var scope = _fx.Factory.Services.CreateAsyncScope())

@@ -737,6 +737,9 @@ namespace Aegis.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("alert_id");
 
+                    b.Property<bool>("BirthYearConflict")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("BirthYearMatched")
                         .HasColumnType("boolean");
 

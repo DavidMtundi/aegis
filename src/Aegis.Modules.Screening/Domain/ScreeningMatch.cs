@@ -23,6 +23,9 @@ public sealed class ScreeningMatch : AggregateRoot
     public double Score { get; private set; }
     public bool BirthYearMatched { get; private set; }
 
+    /// <summary>The customer's birth year is outside the listed range; matched on a near-exact name only.</summary>
+    public bool BirthYearConflict { get; private set; }
+
     /// <summary>The listed subject as it was when matched; lists change, the review record must not.</summary>
     public WatchlistSubject Subject { get; private set; } = null!;
 
@@ -50,6 +53,7 @@ public sealed class ScreeningMatch : AggregateRoot
             MatchedName = match.MatchedName,
             Score = match.Score,
             BirthYearMatched = match.BirthYearMatched,
+            BirthYearConflict = match.BirthYearConflict,
             Subject = match.Subject,
             Trigger = trigger,
             Status = ScreeningMatchStatus.PENDING_REVIEW,

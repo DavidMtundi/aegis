@@ -29,7 +29,8 @@ public static class ScreeningAlertPolicy
             ["customerName"] = match.CustomerName,
             ["matchScore"] = match.Score,
             ["externalId"] = match.ExternalId,
-            ["birthYearMatched"] = match.BirthYearMatched
+            ["birthYearMatched"] = match.BirthYearMatched,
+            ["birthYearConflict"] = match.BirthYearConflict
         },
         AdditionalContext = new Dictionary<string, object>
         {

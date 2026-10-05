@@ -31,8 +31,30 @@ public sealed class WatchlistIndexTests
         => Assert.True(Assert.Single(_index.Screen(Candidate("Zephaniah Mbwana", new DateOnly(1979, 3, 1)))).BirthYearMatched);
 
     [Fact]
-    public void Birth_year_outside_the_listed_range_excludes_the_subject()
-        => Assert.Empty(_index.Screen(Candidate("Zephaniah Mbwana", new DateOnly(1990, 1, 1))));
+    public void Birth_year_outside_the_listed_range_excludes_a_close_but_not_exact_name()
+    {
+        var score = Assert.Single(_index.Screen(Candidate("Zephaniah Mbwana"))).Score;
+        Assert.InRange(score, WatchlistIndex.DefaultThreshold, WatchlistIndex.BirthYearBypassScore - 0.001);
+
+        Assert.Empty(_index.Screen(Candidate("Zephaniah Mbwana", new DateOnly(1990, 1, 1))));
+    }
+
+    [Fact]
+    public void A_near_exact_name_with_a_conflicting_birth_year_is_kept_and_flagged()
+    {
+        var match = Assert.Single(_index.Screen(Candidate("Zephaniah Okoth Mbwana", new DateOnly(1990, 1, 1))));
+
+        Assert.True(match.BirthYearConflict);
+        Assert.False(match.BirthYearMatched);
+        Assert.True(match.Score >= WatchlistIndex.BirthYearBypassScore);
+    }
+
+    [Fact]
+    public void A_consistent_or_unknown_birth_year_is_not_a_conflict()
+    {
+        Assert.False(Assert.Single(_index.Screen(Candidate("Zephaniah Okoth Mbwana", new DateOnly(1978, 1, 1)))).BirthYearConflict);
+        Assert.False(Assert.Single(_index.Screen(Candidate("Zephaniah Okoth Mbwana"))).BirthYearConflict);
+    }
 
     [Fact]
     public void Kind_must_agree()
