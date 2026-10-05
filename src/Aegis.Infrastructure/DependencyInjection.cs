@@ -74,6 +74,8 @@ public static class DependencyInjection
         {
             c.Timeout = TimeSpan.FromMinutes(3);
             c.MaxResponseContentBufferSize = Screening.WatchlistDownloader.MaxBytes;
+            // OFAC rejects requests without a User-Agent (403).
+            c.DefaultRequestHeaders.UserAgent.ParseAdd("Aegis-Screening/1.0");
         });
         services.AddScoped<IWatchlistDownloader, Screening.WatchlistDownloader>();
         services.AddScoped<IWatchlistRefreshLock, Screening.PostgresWatchlistRefreshLock>();

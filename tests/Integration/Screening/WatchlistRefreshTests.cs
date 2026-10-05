@@ -29,4 +29,13 @@ public sealed class WatchlistRefreshTests : IAsyncLifetime
         var index = (await scope.ServiceProvider.GetRequiredService<IGlobalWatchlist>().GetAsync()).Index;
         Assert.Equal(6, index.Count);
     }
+
+    [Fact]
+    public void List_download_client_sends_a_user_agent()
+    {
+        // OFAC answers 403 to requests without a User-Agent.
+        var client = _fx.Factory.Services.GetRequiredService<IHttpClientFactory>()
+            .CreateClient(Aegis.Infrastructure.Screening.WatchlistDownloader.HttpClientName);
+        Assert.NotEmpty(client.DefaultRequestHeaders.UserAgent);
+    }
 }
