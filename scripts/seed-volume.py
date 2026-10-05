@@ -536,7 +536,7 @@ def screening(api, token, tag, customers, reviewer_token):
               + ", rescreen queued")
     else:
         print(f"  screening: list refresh failed ({status} {res}); continuing with the lists already loaded")
-    if loaded.get("UN", {}).get("status") not in ("LOADED", "UNCHANGED"):
+    if loaded.get("UN", {}).get("status") not in ("LOADED", "UNCHANGED", "SKIPPED"):
         print("  screening: UN list not loaded; the UN-listed customers will have no matches")
 
     un_customers = []
