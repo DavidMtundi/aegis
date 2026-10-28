@@ -73,4 +73,15 @@ public sealed class RiskModelValidationTests
         Assert.True(v2.IsActive);
         Assert.Equal(20, v2.Bands.Medium);
     }
+
+    [Fact]
+    public void Screening_factors_need_only_a_weight()
+        => Assert.Empty(RiskModelValidator.Validate(
+            new[]
+            {
+                new RiskFactorDefinition(RiskFactorType.SANCTIONS_MATCH, 100),
+                new RiskFactorDefinition(RiskFactorType.PEP_MATCH, 30),
+                new RiskFactorDefinition(RiskFactorType.WATCHLIST_MATCH, 50)
+            },
+            RiskModelDefaults.Bands));
 }

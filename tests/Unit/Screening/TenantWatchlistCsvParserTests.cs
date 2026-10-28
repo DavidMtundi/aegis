@@ -1,0 +1,122 @@
+namespace Aegis.Tests.Unit.Screening;
+
+using Aegis.Application.Screening;
+using Aegis.Modules.Screening.Domain;
+
+public sealed class TenantWatchlistCsvParserTests
+{
+    private const string Header = "reference,name,category,kind,aliases,birthYear,country,notes\n";
+
+    [Fact]
+    public void Parses_rows_with_aliases_ranges_and_quoted_names()
+    {
+        var result = TenantWatchlistCsvParser.Parse(Header +
+            "PEP-1,\"Wanjiku, Jane Doe\",pep,individual,Jane W. Doe; J. Wanjiku,1968-1970,KE,Former governor\n" +
+            "INT-7,Blue Lagoon Traders,WATCHLIST,ENTITY,,,,\n");
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(2, result.Subjects.Count);
+        var pep = result.Subjects[0];
+        Assert.Equal(WatchlistSource.TENANT, pep.Source);
+        Assert.Equal("PEP-1", pep.ExternalId);
+        Assert.Equal(WatchlistCategory.PEP, pep.Category);
+        Assert.Equal(SubjectKind.INDIVIDUAL, pep.Kind);
+        Assert.Equal(new[] { "Wanjiku, Jane Doe", "Jane W. Doe", "J. Wanjiku" }, pep.Names);
+        Assert.Equal(new[] { new BirthYearRange(1968, 1970) }, pep.BirthYears);
+        Assert.Equal(new[] { "KE" }, pep.Countries);
+        Assert.Equal("Former governor", pep.Detail);
+        Assert.Empty(result.Subjects[1].BirthYears);
+    }
+
+    [Fact]
+    public void Missing_required_column_is_a_header_error()
+    {
+        var result = TenantWatchlistCsvParser.Parse("reference,name,kind\nA,B,INDIVIDUAL\n");
+        Assert.Equal("Missing required columns: category.", Assert.Single(result.Errors));
+        Assert.Empty(result.Subjects);
+    }
+
+    [Fact]
+    public void Any_bad_row_rejects_the_whole_file()
+    {
+        var result = TenantWatchlistCsvParser.Parse(Header +
+            "OK-1,Good Row,PEP,INDIVIDUAL,,,,\n" +
+            "BAD-1,Bad Row,FRIEND,PERSON,,19x0,,\n" +
+            "OK-1,Duplicate,PEP,INDIVIDUAL,,,,\n");
+
+        Assert.Empty(result.Subjects);
+        Assert.Equal(2, result.Errors.Count);
+        Assert.Equal(
+            "Line 3: category must be PEP, SANCTIONS or WATCHLIST; kind must be INDIVIDUAL or ENTITY; birthYear must be a year (1970) or a range (1968-1972).",
+            result.Errors[0]);
+        Assert.Equal("Line 4: reference 'OK-1' appears more than once.", result.Errors[1]);
+    }
+
+    [Theory]
+    [InlineData("1,INDIVIDUAL", "category must be PEP, SANCTIONS or WATCHLIST")]
+    [InlineData("\"SANCTIONS,PEP\",INDIVIDUAL", "category must be PEP, SANCTIONS or WATCHLIST")]
+    [InlineData("PEP,1", "kind must be INDIVIDUAL or ENTITY")]
+    public void Category_and_kind_accept_only_names(string categoryAndKind, string error)
+    {
+        var result = TenantWatchlistCsvParser.Parse(Header + $"R-1,Some Name,{categoryAndKind},,,,\n");
+
+        Assert.Empty(result.Subjects);
+        Assert.Equal($"Line 2: {error}.", Assert.Single(result.Errors));
+    }
+
+    [Fact]
+    public void Row_with_wrong_column_count_rejects_the_file()
+    {
+        var result = TenantWatchlistCsvParser.Parse(Header +
+            "PEP-1,Jane Doe,PEP,INDIVIDUAL,,1970,KE,Former governor, Nairobi\n");
+
+        Assert.Empty(result.Subjects);
+        Assert.Equal("Line 2: expected 8 columns but found 9.", Assert.Single(result.Errors));
+    }
+
+    [Fact]
+    public void Missing_reference_and_name_are_row_errors()
+    {
+        var result = TenantWatchlistCsvParser.Parse(Header +
+            ",Jane Doe,PEP,INDIVIDUAL,,,,\n" +
+            "R-2,,PEP,INDIVIDUAL,,,,\n");
+
+        Assert.Empty(result.Subjects);
+        Assert.Equal(new[] { "Line 2: reference is required.", "Line 3: name is required." }, result.Errors);
+    }
+
+    [Fact]
+    public void Values_longer_than_their_columns_are_row_errors()
+    {
+        var reference = new string('R', ScreeningLimits.ExternalIdMaxLength + 1);
+        var name = new string('N', ScreeningLimits.NameMaxLength + 1);
+        var notes = new string('x', ScreeningLimits.DetailMaxLength + 1);
+        var result = TenantWatchlistCsvParser.Parse(Header +
+            $"{reference},{name},PEP,INDIVIDUAL,,,,{notes}\n" +
+            $"R-2,Jane Doe,PEP,INDIVIDUAL,Short;{name},,,\n");
+
+        Assert.Empty(result.Subjects);
+        Assert.Equal(new[]
+        {
+            $"Line 2: reference is longer than {ScreeningLimits.ExternalIdMaxLength} characters; " +
+            $"name is longer than {ScreeningLimits.NameMaxLength} characters; " +
+            $"notes is longer than {ScreeningLimits.DetailMaxLength} characters.",
+            $"Line 3: an alias is longer than {ScreeningLimits.NameMaxLength} characters."
+        }, result.Errors);
+    }
+
+    [Fact]
+    public void Values_at_their_column_limits_are_accepted()
+    {
+        var result = TenantWatchlistCsvParser.Parse(Header +
+            $"{new string('R', ScreeningLimits.ExternalIdMaxLength)},{new string('N', ScreeningLimits.NameMaxLength)},PEP,INDIVIDUAL,,,," +
+            $"{new string('x', ScreeningLimits.DetailMaxLength)}\n");
+
+        Assert.Empty(result.Errors);
+        Assert.Single(result.Subjects);
+    }
+
+    [Fact]
+    public void File_with_only_a_header_is_rejected()
+        => Assert.Equal("The file has no rows.", Assert.Single(TenantWatchlistCsvParser.Parse(Header).Errors));
+}

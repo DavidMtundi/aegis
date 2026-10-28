@@ -107,4 +107,35 @@ public sealed class RiskCalculatorTests
         Assert.Equal(30, contribution.Weight);
         Assert.Contains("IR", contribution.Detail);
     }
+
+    [Theory]
+    [InlineData("SANCTIONS", RiskFactorType.SANCTIONS_MATCH, 100)]
+    [InlineData("WATCHLIST", RiskFactorType.WATCHLIST_MATCH, 50)]
+    [InlineData("PEP", RiskFactorType.PEP_MATCH, 30)]
+    public void Confirmed_screening_match_adds_its_factor_weight(string category, RiskFactorType type, int points)
+    {
+        var inputs = Inputs() with { ConfirmedScreeningCategories = new[] { category } };
+
+        var result = RiskCalculator.Calculate(RiskModelDefaults.Factors, RiskModelDefaults.Bands, inputs);
+
+        Assert.Equal(points, result.Contributions.Single(c => c.Type == type).Points);
+    }
+
+    [Fact]
+    public void Confirmed_sanctions_match_puts_the_customer_in_the_critical_band()
+    {
+        var inputs = Inputs() with { ConfirmedScreeningCategories = new[] { "SANCTIONS" } };
+
+        var result = RiskCalculator.Calculate(RiskModelDefaults.Factors, RiskModelDefaults.Bands, inputs);
+
+        Assert.Equal(100, result.Score);
+        Assert.Equal(RiskBand.CRITICAL, result.Band);
+    }
+
+    [Fact]
+    public void No_confirmed_match_adds_nothing()
+        => Assert.All(
+            RiskCalculator.Calculate(RiskModelDefaults.Factors, RiskModelDefaults.Bands, Inputs()).Contributions
+                .Where(c => c.Type is RiskFactorType.SANCTIONS_MATCH or RiskFactorType.PEP_MATCH or RiskFactorType.WATCHLIST_MATCH),
+            c => Assert.Equal(0, c.Points));
 }

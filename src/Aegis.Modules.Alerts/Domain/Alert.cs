@@ -52,6 +52,17 @@ public sealed class Alert : AggregateRoot
         };
     }
 
+    public static Alert CreateFromScreening(
+        TenantId tenantId, Guid customerId, Guid matchId, AlertSeverity severity, int riskScore, AlertEvidence evidence,
+        Guid? alertId = null)
+    {
+        var alert = Create(
+            tenantId, ScreeningAlertSource.RuleId, ScreeningAlertSource.RuleId, FocusType.CUSTOMER, customerId.ToString(),
+            severity, riskScore, evidence, $"{tenantId.Value:D}:screening:{matchId:D}");
+        if (alertId is { } id) alert.Id = id;
+        return alert;
+    }
+
     public bool IsClosed => Status is AlertStatus.RESOLVED or AlertStatus.DISMISSED or AlertStatus.CLOSED;
 
     public void Assign(string assignedTo)

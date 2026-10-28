@@ -1,0 +1,28 @@
+<?xml version="1.0" standalone="yes"?>
+<sdnList xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/XML">
+  <publshInformation><Publish_Date>10/02/2026</Publish_Date><Record_Count>3</Record_Count></publshInformation>
+  <sdnEntry>
+    <uid>990001</uid>
+    <firstName>Amina Wanjiru</firstName>
+    <lastName>NDEGWA</lastName>
+    <sdnType>Individual</sdnType>
+    <programList><program>SDGT</program></programList>
+    <akaList>
+      <aka><uid>1</uid><type>a.k.a.</type><category>strong</category><firstName>Amina</firstName><lastName>NDEGWA-ODHIAMBO</lastName></aka>
+      <aka><uid>2</uid><type>a.k.a.</type><category>weak</category><lastName>MAMA A</lastName></aka>
+    </akaList>
+    <nationalityList><nationality><uid>3</uid><country>Kenya</country><mainEntry>true</mainEntry></nationality></nationalityList>
+    <dateOfBirthList><dateOfBirthItem><uid>4</uid><dateOfBirth>10 Dec 1968</dateOfBirth><mainEntry>true</mainEntry></dateOfBirthItem></dateOfBirthList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>990002</uid>
+    <lastName>SILVERLINE LOGISTICS FZE</lastName>
+    <sdnType>Entity</sdnType>
+    <programList><program>IRAN</program><program>NPWMD</program></programList>
+  </sdnEntry>
+  <sdnEntry>
+    <uid>990003</uid>
+    <lastName>OCEAN STAR</lastName>
+    <sdnType>Vessel</sdnType>
+  </sdnEntry>
+</sdnList>

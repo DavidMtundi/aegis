@@ -33,5 +33,6 @@
     <ProjectReference Include="..\Aegis.Modules.Cases\Aegis.Modules.Cases.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Features\Aegis.Modules.Features.csproj" />
     <ProjectReference Include="..\Aegis.Modules.Risk\Aegis.Modules.Risk.csproj" />
+    <ProjectReference Include="..\Aegis.Modules.Screening\Aegis.Modules.Screening.csproj" />
   </ItemGroup>
 </Project>

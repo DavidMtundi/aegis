@@ -22,7 +22,11 @@ public sealed class AegisApiFactory : WebApplicationFactory<Program>
                 ["Jwt:Issuer"] = "aegis",
                 ["Jwt:Audience"] = "aegis-api",
                 ["Aegis:AllowDevBootstrap"] = "true",
-                ["Risk:NightlyBatch:Enabled"] = "false"
+                ["Risk:NightlyBatch:Enabled"] = "false",
+                ["Screening:Refresh:Enabled"] = "false",
+                ["Screening:Rescreen:Enabled"] = "false",
+                ["Screening:Sources:UN:Path"] = Path.Combine(AppContext.BaseDirectory, "Fixtures", "screening", "un-sample.xml"),
+                ["Screening:Sources:OFAC:Path"] = Path.Combine(AppContext.BaseDirectory, "Fixtures", "screening", "ofac-sample.xml")
             });
         });
     }

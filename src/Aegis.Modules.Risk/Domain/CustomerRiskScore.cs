@@ -9,6 +9,7 @@ public static class RiskTriggers
     public const string Manual = "MANUAL";
     public const string Batch = "BATCH";
     public const string ModelChanged = "MODEL_CHANGED";
+    public const string ScreeningConfirmed = "SCREENING_CONFIRMED";
 }
 
 /// <summary>One calculated score; rows are append-only so the latest row is the current score and the rest is history.</summary>

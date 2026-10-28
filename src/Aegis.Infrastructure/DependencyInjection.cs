@@ -5,6 +5,7 @@ using System.Text;
 using Aegis.Application.Dashboard;
 using Aegis.Application.Lookups;
 using Aegis.Application.Risk;
+using Aegis.Application.Screening;
 using Aegis.Application.Transactions;
 using Aegis.Infrastructure.Aml;
 using Aegis.Infrastructure.Auth;
@@ -19,6 +20,8 @@ using Aegis.Modules.Customers.Application;
 using Aegis.Modules.Features.Application;
 using Aegis.Modules.Identity.Application;
 using Aegis.Modules.Risk.Application;
+using Aegis.Modules.Screening.Application;
+using Aegis.Modules.Screening.Domain;
 using Aegis.Modules.Transactions.Application;
 using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
@@ -62,6 +65,32 @@ public static class DependencyInjection
         services.AddScoped<IRiskBatchSource, RiskBatchSource>();
         services.AddScoped<IRiskBatchRecalculator, RiskBatchRecalculator>();
         services.AddHostedService<Risk.NightlyRiskBatchService>();
+        services.AddScoped<Screening.ScreeningRiskFactorSync>();
+        services.AddHostedService<Screening.ScreeningRiskFactorSyncService>();
+        services.AddScoped<IWatchlistRepository, WatchlistRepository>();
+        services.AddScoped<ITenantWatchlistRepository, TenantWatchlistRepository>();
+        services.AddScoped<IScreeningMatchRepository, ScreeningMatchRepository>();
+        services.AddHttpClient(Screening.WatchlistDownloader.HttpClientName, c =>
+        {
+            c.Timeout = TimeSpan.FromMinutes(3);
+            c.MaxResponseContentBufferSize = Screening.WatchlistDownloader.MaxBytes;
+            // OFAC rejects requests without a User-Agent (403).
+            c.DefaultRequestHeaders.UserAgent.ParseAdd("Aegis-Screening/1.0");
+        });
+        services.AddScoped<IWatchlistDownloader, Screening.WatchlistDownloader>();
+        services.AddScoped<IWatchlistRefreshLock, Screening.PostgresWatchlistRefreshLock>();
+        services.AddScoped<IWatchlistRefresher, WatchlistRefresher>();
+        services.AddSingleton<IGlobalWatchlist, Screening.GlobalWatchlistCache>();
+        services.AddSingleton(sp => new ScreeningOptions(
+            sp.GetRequiredService<IConfiguration>().GetValue("Screening:MatchThreshold", WatchlistIndex.DefaultThreshold)));
+        services.AddScoped<IScreeningCandidateReader, Screening.ScreeningCandidateReader>();
+        services.AddScoped<ICustomerScreeningService, CustomerScreeningService>();
+        services.AddScoped<ITenantScreeningStateRepository, TenantScreeningStateRepository>();
+        services.AddScoped<IScreeningRescreener, ScreeningRescreener>();
+        services.AddSingleton<IRescreenSignal, Screening.RescreenSignal>();
+        services.AddSingleton<Screening.ScreeningRescreenService>();
+        services.AddHostedService(sp => sp.GetRequiredService<Screening.ScreeningRescreenService>());
+        services.AddHostedService<Screening.WatchlistRefreshService>();
         services.AddSingleton(sp =>
         {
             var config = sp.GetRequiredService<IConfiguration>();

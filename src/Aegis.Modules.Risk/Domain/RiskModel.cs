@@ -66,5 +66,8 @@ public static class RiskModelDefaults
         new RiskFactorDefinition(RiskFactorType.HIGH_SEVERITY_ALERTS, 20, PointsEach: 10, WindowDays: 90),
         new RiskFactorDefinition(RiskFactorType.SUSPICIOUS_CASES, 30, PointsEach: 15),
         new RiskFactorDefinition(RiskFactorType.TRANSACTION_ACTIVITY, 10, Threshold: 100, WindowDays: 30),
+        new RiskFactorDefinition(RiskFactorType.SANCTIONS_MATCH, 100),
+        new RiskFactorDefinition(RiskFactorType.WATCHLIST_MATCH, 50),
+        new RiskFactorDefinition(RiskFactorType.PEP_MATCH, 30),
     };
 }

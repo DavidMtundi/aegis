@@ -1,7 +1,7 @@
 namespace Aegis.Application.Transactions;
 
 using System.Globalization;
-using System.Text;
+using Aegis.Application.Csv;
 
 public sealed record CsvTransactionRow(int LineNumber, string? ExternalReference, IngestTransactionPayload? Payload, string? Error);
 
@@ -22,12 +22,12 @@ public static class TransactionCsvParser
 
     public static CsvParseResult Parse(string csv)
     {
-        var lines = csv.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+        var lines = CsvLine.Lines(csv);
         var headerIndex = Array.FindIndex(lines, l => !string.IsNullOrWhiteSpace(l));
         if (headerIndex < 0)
             return new CsvParseResult(new[] { "CSV is empty." }, Array.Empty<CsvTransactionRow>());
 
-        var header = SplitLine(lines[headerIndex]);
+        var header = CsvLine.Split(lines[headerIndex]);
         if (header is null)
             return new CsvParseResult(new[] { "Header row has an unterminated quote." }, Array.Empty<CsvTransactionRow>());
 
@@ -53,7 +53,7 @@ public static class TransactionCsvParser
 
     private static CsvTransactionRow ParseRow(int lineNumber, string line, int columnCount, Dictionary<string, int> columns)
     {
-        var fields = SplitLine(line);
+        var fields = CsvLine.Split(line);
         if (fields is null)
             return new CsvTransactionRow(lineNumber, null, null, "Unterminated quote.");
 
@@ -95,51 +95,5 @@ public static class TransactionCsvParser
             timestamp,
             string.IsNullOrEmpty(counterparty) ? null : counterparty,
             null), null);
-    }
-
-    /// <returns>Null when a quoted field is not terminated on the same line.</returns>
-    private static List<string>? SplitLine(string line)
-    {
-        var fields = new List<string>();
-        var current = new StringBuilder();
-        var inQuotes = false;
-
-        for (var i = 0; i < line.Length; i++)
-        {
-            var ch = line[i];
-            if (inQuotes)
-            {
-                if (ch == '"' && i + 1 < line.Length && line[i + 1] == '"')
-                {
-                    current.Append('"');
-                    i++;
-                }
-                else if (ch == '"')
-                {
-                    inQuotes = false;
-                }
-                else
-                {
-                    current.Append(ch);
-                }
-            }
-            else if (ch == '"')
-            {
-                inQuotes = true;
-            }
-            else if (ch == ',')
-            {
-                fields.Add(current.ToString());
-                current.Clear();
-            }
-            else
-            {
-                current.Append(ch);
-            }
-        }
-
-        if (inQuotes) return null;
-        fields.Add(current.ToString());
-        return fields;
     }
 }

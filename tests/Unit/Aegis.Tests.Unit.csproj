@@ -30,6 +30,11 @@
     <ProjectReference Include="..\..\src\Aegis.Application\Aegis.Application.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Modules.Customers\Aegis.Modules.Customers.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Modules.Risk\Aegis.Modules.Risk.csproj" />
+    <ProjectReference Include="..\..\src\Aegis.Modules.Screening\Aegis.Modules.Screening.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\Fixtures\screening\*.xml" LinkBase="Fixtures\screening" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

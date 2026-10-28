@@ -29,7 +29,8 @@ public sealed class DashboardController : ControllerBase
         AlertMetrics? Alerts,
         CaseMetrics? Cases,
         TransactionMetrics? Transactions,
-        RiskMetrics? Risk);
+        RiskMetrics? Risk,
+        ScreeningMetrics? Screening);
 
     [HttpGet]
     public async Task<ActionResult<DashboardResponse>> Get(CancellationToken ct)
@@ -44,7 +45,8 @@ public sealed class DashboardController : ControllerBase
         var cases = Can(Permissions.CaseRead) ? await _queries.GetCaseMetricsAsync(tenantId, now, ct) : null;
         var transactions = Can(Permissions.TransactionRead) ? await _queries.GetTransactionMetricsAsync(tenantId, now, ct) : null;
         var risk = Can(Permissions.CustomerRead) ? await _queries.GetRiskMetricsAsync(tenantId, ct) : null;
+        var screening = Can(Permissions.ScreeningRead) ? await _queries.GetScreeningMetricsAsync(tenantId, ct) : null;
 
-        return new DashboardResponse(now, _options.AlertSlaDays, _options.CaseSlaDays, alerts, cases, transactions, risk);
+        return new DashboardResponse(now, _options.AlertSlaDays, _options.CaseSlaDays, alerts, cases, transactions, risk, screening);
     }
 }

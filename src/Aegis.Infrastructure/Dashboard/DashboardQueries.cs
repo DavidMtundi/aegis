@@ -5,6 +5,7 @@ using Aegis.Infrastructure.Persistence;
 using Aegis.Modules.Alerts.Domain;
 using Aegis.Modules.Cases.Domain;
 using Aegis.Modules.Risk.Domain;
+using Aegis.Modules.Screening.Domain;
 using Aegis.Shared.Domain;
 using Microsoft.EntityFrameworkCore;
 
@@ -91,7 +92,9 @@ public sealed class DashboardQueries : IDashboardQueries
             Trend: DashboardMath.FillTrend(trendRows.ToDictionary(r => r.Day, r => r.Count), now, _options.TrendDays),
             ByRule: ruleCounts.Select(r => rules.TryGetValue(r.RuleId, out var rule)
                     ? new RuleAlertStats(r.RuleId, rule.Code, rule.Name, r.Total, r.Dismissed, DashboardMath.Rate(r.Dismissed, r.Total))
-                    : new RuleAlertStats(r.RuleId, "", "Unknown rule", r.Total, r.Dismissed, DashboardMath.Rate(r.Dismissed, r.Total)))
+                    : r.RuleId == ScreeningAlertSource.RuleId
+                        ? new RuleAlertStats(r.RuleId, "", "Confirmed screening matches", r.Total, r.Dismissed, DashboardMath.Rate(r.Dismissed, r.Total))
+                        : new RuleAlertStats(r.RuleId, "", "Unknown rule", r.Total, r.Dismissed, DashboardMath.Rate(r.Dismissed, r.Total)))
                 .ToList());
     }
 
@@ -143,6 +146,10 @@ public sealed class DashboardQueries : IDashboardQueries
 
         return new RiskMetrics(scored, Math.Max(0, customers - scored), DashboardMath.AllKeys<RiskBand>(byBand));
     }
+
+    public async Task<ScreeningMetrics> GetScreeningMetricsAsync(TenantId tenantId, CancellationToken cancellationToken = default)
+        => new(await _db.ScreeningMatches.AsNoTracking()
+            .CountAsync(m => m.TenantId == tenantId && m.Status == ScreeningMatchStatus.PENDING_REVIEW, cancellationToken));
 
     private static DateTimeOffset StartOfUtcDay(DateTimeOffset now)
     {
