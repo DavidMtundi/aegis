@@ -23,6 +23,14 @@ public interface IUserRepository
     Task UpdateAsync(User user, CancellationToken cancellationToken = default);
 }
 
+public interface IRefreshTokenRepository
+{
+    Task AddAsync(RefreshToken token, CancellationToken cancellationToken = default);
+    Task<RefreshToken?> GetByHashAsync(string tokenHash, CancellationToken cancellationToken = default);
+    Task UpdateAsync(RefreshToken token, CancellationToken cancellationToken = default);
+    Task RevokeAllForUserAsync(TenantId tenantId, Guid userId, CancellationToken cancellationToken = default);
+}
+
 public static class UserRepositoryExtensions
 {
     /// <summary>Resolves an assignee id (or the caller when blank) to an active user in the tenant.</summary>

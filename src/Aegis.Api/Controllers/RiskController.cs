@@ -8,8 +8,10 @@ using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 [ApiController]
+[EnableRateLimiting("api")]
 [Authorize]
 [Route("api/v1")]
 public sealed class RiskController : ControllerBase

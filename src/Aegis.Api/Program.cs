@@ -2,8 +2,10 @@ using System.Text;
 using System.Threading.RateLimiting;
 using Aegis.Api.Authorization;
 using Aegis.Api.Middleware;
+using Aegis.Api.Observability;
 using Aegis.Infrastructure;
 using Aegis.Infrastructure.Persistence;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 
@@ -24,6 +26,21 @@ try
 
     EnsureJwtSigningKeyConfigured(builder);
 
+    var maxRequestBytes = builder.Configuration.GetValue("Limits:MaxRequestBodyBytes", 10L * 1024 * 1024);
+    builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = maxRequestBytes);
+    builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(o =>
+    {
+        o.MultipartBodyLengthLimit = maxRequestBytes;
+    });
+
+    builder.Services.Configure<ForwardedHeadersOptions>(o =>
+    {
+        o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        // Trust proxy network from config; empty = clear known networks/proxies so local reverse proxies work in prod setups.
+        o.KnownNetworks.Clear();
+        o.KnownProxies.Clear();
+    });
+
     builder.Services.AddControllers()
         .AddJsonOptions(o =>
         {
@@ -42,21 +59,36 @@ try
 
     builder.Services.AddAegisInfrastructure(builder.Configuration);
     builder.Services.AddPermissionAuthorization();
+    builder.AddAegisOpenTelemetry();
     var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
     builder.Services.AddCors(o => o.AddPolicy("Default", p =>
-        p.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader()));
+        p.WithOrigins(allowedOrigins)
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .WithExposedHeaders(CorrelationIdMiddleware.HeaderName)));
 
     var loginPermitLimit = builder.Configuration.GetValue("RateLimiting:Login:PermitLimit", 10);
     var loginWindow = TimeSpan.FromSeconds(builder.Configuration.GetValue("RateLimiting:Login:WindowSeconds", 60));
+    var apiPermitLimit = builder.Configuration.GetValue("RateLimiting:Api:PermitLimit", 300);
+    var apiWindow = TimeSpan.FromSeconds(builder.Configuration.GetValue("RateLimiting:Api:WindowSeconds", 60));
+
     builder.Services.AddRateLimiter(o =>
     {
         o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
         o.AddPolicy("login", http => RateLimitPartition.GetFixedWindowLimiter(
-            http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            ClientIp(http),
             _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = loginPermitLimit,
                 Window = loginWindow,
+                QueueLimit = 0
+            }));
+        o.AddPolicy("api", http => RateLimitPartition.GetFixedWindowLimiter(
+            TenantOrIp(http),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = apiPermitLimit,
+                Window = apiWindow,
                 QueueLimit = 0
             }));
     });
@@ -70,6 +102,8 @@ try
         db.Database.Migrate();
     }
 
+    app.UseForwardedHeaders();
+    app.UseMiddleware<CorrelationIdMiddleware>();
     app.UseSerilogRequestLogging();
 
     if (app.Environment.IsDevelopment())
@@ -83,9 +117,10 @@ try
     }
 
     app.UseCors("Default");
-    app.UseRateLimiter();
     app.UseAuthentication();
     app.UseMiddleware<TenantContextMiddleware>();
+    // After auth so the "api" policy can partition on tenant_id; login still uses client IP.
+    app.UseRateLimiter();
     app.UseAuthorization();
 
     app.MapControllers();
@@ -99,7 +134,7 @@ try
         authenticated = tenantContext.IsAuthenticated,
         tenantId = tenantContext.IsAuthenticated ? tenantContext.TenantId.Value : (Guid?)null,
         timestamp = DateTimeOffset.UtcNow
-    }).RequireAuthorization().WithName("GetStatus").WithTags("System");
+    }).RequireAuthorization().RequireRateLimiting("api").WithName("GetStatus").WithTags("System");
 
     app.Run();
 }
@@ -110,6 +145,15 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+static string ClientIp(HttpContext http) =>
+    http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+static string TenantOrIp(HttpContext http)
+{
+    var tenant = http.User?.FindFirst("tenant_id")?.Value;
+    return !string.IsNullOrWhiteSpace(tenant) ? $"tenant:{tenant}" : $"ip:{ClientIp(http)}";
 }
 
 static void EnsureJwtSigningKeyConfigured(WebApplicationBuilder builder)

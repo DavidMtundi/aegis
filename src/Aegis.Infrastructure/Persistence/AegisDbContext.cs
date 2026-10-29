@@ -24,6 +24,7 @@ public sealed class AegisDbContext : DbContext
 
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
@@ -53,6 +54,8 @@ public sealed class AegisDbContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AegisDbContext).Assembly);
 
         modelBuilder.Entity<User>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantId);
+        // Refresh lookup is by hash before tenant context is set — no global filter.
+
         modelBuilder.Entity<Role>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<Customer>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantId);
         modelBuilder.Entity<Account>().HasQueryFilter(e => !TenantFilterEnabled || e.TenantId == CurrentTenantId);

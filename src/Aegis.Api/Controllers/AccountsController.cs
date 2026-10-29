@@ -5,8 +5,10 @@ using Aegis.Modules.Customers.Application;
 using Aegis.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 [ApiController]
+[EnableRateLimiting("api")]
 [Authorize]
 [Route("api/v1/accounts")]
 public sealed class AccountsController : ControllerBase

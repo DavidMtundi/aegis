@@ -9,7 +9,9 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Jwt__SigningKey": "dev-only-signing-key-change-me-32chars-min!!",
-        "Cors__AllowedOrigins__0": "http://localhost:3000"
+        "Cors__AllowedOrigins__0": "http://localhost:3000",
+        "OpenTelemetry__ConsoleExporter": "true",
+        "RateLimiting__Api__PermitLimit": "1000"
       }
     },
     "https": {
@@ -20,7 +22,9 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "Jwt__SigningKey": "dev-only-signing-key-change-me-32chars-min!!",
-        "Cors__AllowedOrigins__0": "http://localhost:3000"
+        "Cors__AllowedOrigins__0": "http://localhost:3000",
+        "OpenTelemetry__ConsoleExporter": "true",
+        "RateLimiting__Api__PermitLimit": "1000"
       }
     }
   }

@@ -36,4 +36,28 @@ jobs:
     - name: Build
       run: dotnet build --no-restore --configuration Release
     - name: Test
-      run: dotnet test --no-build --configuration Release --verbosity normal
+      env:
+        AEGIS_TEST_CONNECTION: Host=localhost;Port=5432;Database=aegis_test;Username=aegis;Password=aegis_dev_password
+      run: |
+        PGPASSWORD=aegis_dev_password psql -h localhost -U aegis -d aegis -c "SELECT 1" >/dev/null
+        PGPASSWORD=aegis_dev_password psql -h localhost -U aegis -d aegis -tc "SELECT 1 FROM pg_database WHERE datname='aegis_test'" | grep -q 1 \
+          || PGPASSWORD=aegis_dev_password psql -h localhost -U aegis -d aegis -c "CREATE DATABASE aegis_test"
+        dotnet test --no-build --configuration Release --verbosity normal
+    - name: Vulnerable package audit
+      run: |
+        set -euo pipefail
+        # Fail the job if any package reports a known vulnerability (Severity >= Moderate).
+        dotnet list package --vulnerable --include-transitive --format json > /tmp/vuln.json
+        if grep -q '"VulnerabilityId"' /tmp/vuln.json; then
+          echo "Vulnerable packages detected:"
+          cat /tmp/vuln.json
+          exit 1
+        fi
+        echo "No vulnerable packages reported."
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build container image
+      run: docker build -t aegis-api:ci .

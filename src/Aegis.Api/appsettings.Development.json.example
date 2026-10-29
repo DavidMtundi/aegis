@@ -1,0 +1,14 @@
+{
+  "Cors": {
+    "AllowedOrigins": [ "http://localhost:3000" ]
+  },
+  "OpenTelemetry": {
+    "ConsoleExporter": true
+  },
+  "RateLimiting": {
+    "Api": {
+      "PermitLimit": 1000,
+      "WindowSeconds": 60
+    }
+  }
+}

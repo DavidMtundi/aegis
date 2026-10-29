@@ -22,6 +22,7 @@ public static class Permissions
     public const string CaseClose = "case.close";
     public const string RuleRead = "rule.read";
     public const string RuleCreate = "rule.create";
+    public const string RuleApprove = "rule.approve";
     public const string RuleActivate = "rule.activate";
     public const string AuditRead = "audit.read";
     public const string UserManage = "user.manage";
@@ -35,7 +36,7 @@ public static class Permissions
         CustomerRead, CustomerWrite, TransactionRead, TransactionWrite,
         AlertRead, AlertAssign, AlertDismiss, AlertResolve, AlertEscalate,
         CaseRead, CaseCreate, CaseUpdate, CaseClose,
-        RuleRead, RuleCreate, RuleActivate,
+        RuleRead, RuleCreate, RuleApprove, RuleActivate,
         AuditRead, UserManage, RiskManage,
         ScreeningRead, ScreeningReview, ScreeningManage
     };
@@ -62,6 +63,7 @@ public static class RolePermissions
     private static readonly string[] ReviewerGrants = AnalystGrants
         .Append(Permissions.AuditRead)
         .Append(Permissions.ScreeningReview)
+        .Append(Permissions.RuleApprove)
         .ToArray();
 
     private static readonly Dictionary<string, HashSet<string>> RoleGrants = new(StringComparer.OrdinalIgnoreCase)

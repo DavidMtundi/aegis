@@ -6,8 +6,10 @@ using Aegis.Modules.Audit.Domain;
 using Aegis.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 [ApiController]
+[EnableRateLimiting("api")]
 [Authorize]
 [Route("api/v1/audit-events")]
 public sealed class AuditEventsController : ControllerBase

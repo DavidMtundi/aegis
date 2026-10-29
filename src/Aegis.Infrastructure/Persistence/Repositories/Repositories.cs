@@ -68,6 +68,33 @@ public sealed class UserRepository : IUserRepository
     }
 }
 
+public sealed class RefreshTokenRepository : IRefreshTokenRepository
+{
+    private readonly AegisDbContext _db;
+    public RefreshTokenRepository(AegisDbContext db) => _db = db;
+
+    public async Task AddAsync(RefreshToken token, CancellationToken cancellationToken = default)
+        => await _db.RefreshTokens.AddAsync(token, cancellationToken);
+
+    public Task<RefreshToken?> GetByHashAsync(string tokenHash, CancellationToken cancellationToken = default)
+        => _db.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == tokenHash, cancellationToken);
+
+    public Task UpdateAsync(RefreshToken token, CancellationToken cancellationToken = default)
+    {
+        _db.RefreshTokens.Update(token);
+        return Task.CompletedTask;
+    }
+
+    public async Task RevokeAllForUserAsync(TenantId tenantId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var tokens = await _db.RefreshTokens
+            .Where(t => t.TenantId == tenantId && t.UserId == userId && t.RevokedAt == null)
+            .ToListAsync(cancellationToken);
+        foreach (var token in tokens)
+            token.Revoke();
+    }
+}
+
 public sealed class AuditWriter : IAuditWriter
 {
     private readonly AegisDbContext _db;
@@ -293,6 +320,9 @@ public sealed class AmlRuleRepository : IAmlRuleRepository
     private readonly AegisDbContext _db;
     public AmlRuleRepository(AegisDbContext db) => _db = db;
 
+    public Task<AmlRule?> GetByTenantAndIdAsync(TenantId tenantId, Guid ruleId, CancellationToken cancellationToken = default)
+        => _db.AmlRules.FirstOrDefaultAsync(r => r.TenantId == tenantId && r.Id == ruleId, cancellationToken);
+
     public Task<AmlRule?> GetByTenantAndCodeAsync(TenantId tenantId, string code, CancellationToken cancellationToken = default)
         => _db.AmlRules.FirstOrDefaultAsync(r => r.TenantId == tenantId && r.Code == code, cancellationToken);
 
@@ -318,6 +348,13 @@ public sealed class AmlRuleVersionRepository : IAmlRuleVersionRepository
 
     public Task<AmlRuleVersion?> GetByTenantAndIdAsync(TenantId tenantId, Guid versionId, CancellationToken cancellationToken = default)
         => _db.AmlRuleVersions.FirstOrDefaultAsync(v => v.TenantId == tenantId && v.Id == versionId, cancellationToken);
+
+    public async Task<IReadOnlyList<AmlRuleVersion>> ListByTenantAsync(
+        TenantId tenantId, CancellationToken cancellationToken = default)
+        => await _db.AmlRuleVersions.AsNoTracking()
+            .Where(v => v.TenantId == tenantId)
+            .OrderByDescending(v => v.VersionNumber)
+            .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<AmlRuleVersion>> ListByTenantAndRuleIdAsync(
         TenantId tenantId, Guid ruleId, CancellationToken cancellationToken = default)

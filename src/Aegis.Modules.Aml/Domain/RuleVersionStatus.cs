@@ -10,6 +10,7 @@ public enum RuleVersionStatus
     PENDING_APPROVAL,
     APPROVED,
     ACTIVE,
+    SUSPENDED,
     SUPERSEDED,
     RETIRED
 }

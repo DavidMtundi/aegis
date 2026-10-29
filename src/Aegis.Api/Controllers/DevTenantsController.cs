@@ -10,8 +10,10 @@ using Aegis.Shared.Domain;
 using Aegis.Shared.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 [ApiController]
+[EnableRateLimiting("api")]
 [Route("api/v1/tenants")]
 public sealed class DevTenantsController : ControllerBase
 {

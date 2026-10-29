@@ -11,8 +11,10 @@ using Aegis.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using DomainUser = Aegis.Modules.Identity.Domain.User;
+using Microsoft.AspNetCore.RateLimiting;
 
 [ApiController]
+[EnableRateLimiting("api")]
 [Authorize]
 [Route("api/v1/users")]
 public sealed class UsersController : ControllerBase

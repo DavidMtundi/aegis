@@ -14,8 +14,10 @@ using Aegis.Shared.Persistence;
 using Aegis.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 [ApiController]
+[EnableRateLimiting("api")]
 [Authorize]
 [Route("api/v1/cases")]
 public sealed class CasesController : ControllerBase

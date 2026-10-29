@@ -11,6 +11,7 @@ using Aegis.Modules.Identity.Application;
 using Aegis.Modules.Identity.Domain;
 using Aegis.Shared.Domain;
 using Aegis.Shared.Persistence;
+using Aegis.Shared.Security;
 using Aegis.Tests.Integration.Identity;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -144,6 +145,15 @@ public sealed class AlertTestFixture
         client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", await LoginAsync(client, email));
         return client;
+    }
+
+    /// <summary>Submit (admin) → approve (reviewer) → activate (admin) for maker-checker.</summary>
+    public async Task PromoteVersionToActiveAsync(Guid versionId)
+    {
+        var reviewer = await CreateUserClientAsync($"rev-{Guid.NewGuid():N}"[..12] + $"@{Slug}.test", new[] { RoleNames.Reviewer });
+        (await AdminClient.PostAsync($"/api/v1/rules/versions/{versionId}/submit", null)).EnsureSuccessStatusCode();
+        (await reviewer.PostAsync($"/api/v1/rules/versions/{versionId}/approve", null)).EnsureSuccessStatusCode();
+        (await AdminClient.PostAsync($"/api/v1/rules/versions/{versionId}/activate", null)).EnsureSuccessStatusCode();
     }
 
     private async Task<string> LoginAsync(HttpClient client, string email)

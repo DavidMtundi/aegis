@@ -54,6 +54,12 @@ public sealed class AmlRule : AggregateRoot
         UpdatedAt = DateTimeOffset.UtcNow;
     }
 
+    public void ReturnToDraft()
+    {
+        Status = RuleStatus.DRAFT;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     public void Approve()
     {
         Status = RuleStatus.APPROVED;

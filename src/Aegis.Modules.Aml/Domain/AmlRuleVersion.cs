@@ -101,16 +101,55 @@ public sealed class AmlRuleVersion : EntityBase
         };
     }
 
+    public void UpdateDefinition(RuleDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        if (Status != RuleVersionStatus.DRAFT)
+            throw new InvalidOperationException($"Cannot edit a rule version in status {Status}.");
+
+        Definition = definition;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void SubmitForApproval()
+    {
+        if (Status != RuleVersionStatus.DRAFT)
+            throw new InvalidOperationException($"Cannot submit a rule version in status {Status}.");
+
+        Status = RuleVersionStatus.PENDING_APPROVAL;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     public void Approve(string approvedBy)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(approvedBy);
+        if (Status != RuleVersionStatus.PENDING_APPROVAL)
+            throw new InvalidOperationException($"Cannot approve a rule version in status {Status}.");
+        if (string.Equals(approvedBy, CreatedBy, StringComparison.Ordinal))
+            throw new InvalidOperationException("Creator cannot approve their own rule version.");
+
         Status     = RuleVersionStatus.APPROVED;
         ApprovedAt = DateTimeOffset.UtcNow;
         ApprovedBy = approvedBy;
         UpdatedAt  = DateTimeOffset.UtcNow;
     }
 
+    public void ReturnToDraft()
+    {
+        if (Status != RuleVersionStatus.PENDING_APPROVAL)
+            throw new InvalidOperationException($"Cannot return a rule version in status {Status} to draft.");
+
+        Status = RuleVersionStatus.DRAFT;
+        ApprovedAt = null;
+        ApprovedBy = null;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     public void Activate(DateTimeOffset effectiveFrom)
     {
+        if (Status != RuleVersionStatus.APPROVED)
+            throw new InvalidOperationException($"Cannot activate a rule version in status {Status}.");
+
         Status        = RuleVersionStatus.ACTIVE;
         EffectiveFrom = effectiveFrom;
         UpdatedAt     = DateTimeOffset.UtcNow;
@@ -121,5 +160,33 @@ public sealed class AmlRuleVersion : EntityBase
         Status      = RuleVersionStatus.SUPERSEDED;
         EffectiveTo = effectiveTo;
         UpdatedAt   = DateTimeOffset.UtcNow;
+    }
+
+    public void Suspend()
+    {
+        if (Status != RuleVersionStatus.ACTIVE)
+            throw new InvalidOperationException($"Cannot suspend a rule version in status {Status}.");
+
+        Status = RuleVersionStatus.SUSPENDED;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void Resume()
+    {
+        if (Status != RuleVersionStatus.SUSPENDED)
+            throw new InvalidOperationException($"Cannot resume a rule version in status {Status}.");
+
+        Status = RuleVersionStatus.ACTIVE;
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void Retire(DateTimeOffset effectiveTo)
+    {
+        if (Status is not (RuleVersionStatus.ACTIVE or RuleVersionStatus.SUSPENDED))
+            throw new InvalidOperationException($"Cannot retire a rule version in status {Status}.");
+
+        Status = RuleVersionStatus.RETIRED;
+        EffectiveTo ??= effectiveTo;
+        UpdatedAt = DateTimeOffset.UtcNow;
     }
 }

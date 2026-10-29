@@ -44,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
         services.AddScoped<ITenantRepository, TenantRepository>();
         services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<IAuditEventRepository, AuditEventRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
@@ -108,6 +109,7 @@ public static class DependencyInjection
         services.AddSingleton<RuleDefinitionValidator>();
         services.AddSingleton<IRuleEvaluationEngine, RuleEvaluationEngine>();
         services.AddScoped<IIngestAndEvaluateRules, IngestAndEvaluateRules>();
+        services.AddScoped<Aegis.Application.Aml.IRuleSimulator, Aegis.Application.Aml.RuleSimulator>();
         services.AddScoped<ITransactionBatchIngestor, Transactions.TransactionBatchIngestor>();
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<PasswordHasher>();

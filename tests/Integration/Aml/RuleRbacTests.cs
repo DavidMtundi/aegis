@@ -115,15 +115,21 @@ public sealed class RuleRbacTests : IAsyncLifetime
         var versionId = (await adminDraft.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("ruleVersionId").GetGuid();
 
+        var analystSubmit = await _analystClient.PostAsync(
+            $"/api/v1/rules/versions/{versionId}/submit",
+            null);
+        Assert.Equal(HttpStatusCode.Forbidden, analystSubmit.StatusCode);
+
         var analystActivate = await _analystClient.PostAsync(
             $"/api/v1/rules/versions/{versionId}/activate",
             null);
         Assert.Equal(HttpStatusCode.Forbidden, analystActivate.StatusCode);
 
-        var adminActivate = await _adminClient.PostAsync(
+        // Direct activate of DRAFT is blocked by maker-checker (conflict), not allowed for analyst.
+        var adminActivateDraft = await _adminClient.PostAsync(
             $"/api/v1/rules/versions/{versionId}/activate",
             null);
-        Assert.Equal(HttpStatusCode.OK, adminActivate.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, adminActivateDraft.StatusCode);
     }
 
     private async Task<string> LoginAsync(HttpClient client, string email)

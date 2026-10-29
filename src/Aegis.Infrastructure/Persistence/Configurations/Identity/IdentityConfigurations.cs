@@ -70,6 +70,24 @@ public sealed class RoleConfiguration : IEntityTypeConfiguration<Role>
     }
 }
 
+public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
+{
+    public void Configure(EntityTypeBuilder<RefreshToken> builder)
+    {
+        builder.ToTable("refresh_tokens", "identity");
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.TenantId)
+            .HasConversion(id => id.Value, value => new TenantId(value))
+            .HasColumnName("tenant_id")
+            .IsRequired();
+        builder.Property(x => x.UserId).IsRequired();
+        builder.Property(x => x.TokenHash).HasMaxLength(128).IsRequired();
+        builder.HasIndex(x => x.TokenHash).IsUnique();
+        builder.HasIndex(x => new { x.TenantId, x.UserId });
+        builder.Property(x => x.ExpiresAt).IsRequired();
+    }
+}
+
 public sealed class PermissionConfiguration : IEntityTypeConfiguration<Permission>
 {
     public void Configure(EntityTypeBuilder<Permission> builder)

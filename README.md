@@ -21,7 +21,16 @@ dotnet run --project src/Aegis.Api
 
 The API applies EF migrations on startup only in Development (override with `Database__MigrateOnStartup=true|false`). In other environments, run `dotnet ef database update` as a deploy step before starting the new version.
 
-Browser clients must be listed in `Cors:AllowedOrigins` (for example `Cors__AllowedOrigins__0=https://console.example.com`). Local Development allows the console at `http://localhost:3000` via `launchSettings.json`; other environments allow no origins until configured.
+Browser clients must be listed in `Cors:AllowedOrigins` (for example `Cors__AllowedOrigins__0=https://console.example.com`). Local Development allows the console at `http://localhost:3000` via `launchSettings.json` (and optional `appsettings.Development.json` — see `appsettings.Development.json.example`; the real Development file is gitignored).
+
+Hardening helpers (Phase 5):
+
+```bash
+python3 scripts/load-test-ingest.py --count 200 --concurrency 20
+./scripts/backup-restore-smoke.sh
+```
+
+See `aegis-docs/runbooks/postgres-backup-restore.md` and `aegis-docs/designs/2026-10-28-phase-5-hardening.md`.
 
 ### Supervisor demo (local)
 

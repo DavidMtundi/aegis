@@ -10,3 +10,5 @@ secrets/
 
 .worktrees/
 .superpowers/
+.backup-smoke/
+.backups/

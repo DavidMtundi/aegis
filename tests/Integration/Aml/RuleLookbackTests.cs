@@ -42,7 +42,7 @@ public sealed class RuleLookbackTests : IAsyncLifetime
         });
         Assert.Equal(HttpStatusCode.Created, draft.StatusCode);
         var versionId = (await draft.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("ruleVersionId").GetGuid();
-        (await _fx.AdminClient.PostAsync($"/api/v1/rules/versions/{versionId}/activate", null)).EnsureSuccessStatusCode();
+        await _fx.PromoteVersionToActiveAsync(versionId);
     }
 
     private async Task<IReadOnlyList<Guid>> IngestAsync(Guid accountId, string currency, DateTimeOffset timestamp)
